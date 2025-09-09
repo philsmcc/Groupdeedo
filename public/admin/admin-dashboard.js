@@ -10,22 +10,37 @@ class AdminDashboard {
     }
     
     async init() {
+        console.log('🛡️ Initializing Admin Dashboard...');
+        
         // Verify admin session
+        const token = this.getAdminToken();
+        console.log('Admin token found:', !!token);
+        
         if (!this.verifySession()) {
+            console.log('No valid session, redirecting to login');
             window.location.href = '/proadmin/login';
             return;
         }
         
         // Initialize map
+        console.log('🗺️ Initializing map...');
         this.initMap();
         
         // Load initial data
-        await this.loadStats();
-        await this.updateMap();
-        await this.updateMessages();
+        console.log('📊 Loading initial data...');
+        try {
+            await this.loadStats();
+            await this.updateMap();
+            await this.updateMessages();
+            
+            console.log('✅ Initial data loaded successfully');
+        } catch (error) {
+            console.error('❌ Failed to load initial data:', error);
+        }
         
         // Set up auto-refresh every 30 seconds
         this.autoRefreshInterval = setInterval(() => {
+            console.log('🔄 Auto-refreshing data...');
             this.loadStats();
             this.updateMap();
             this.updateMessages();
@@ -35,7 +50,7 @@ class AdminDashboard {
         this.updateTimestamp();
         setInterval(() => this.updateTimestamp(), 1000);
         
-        console.log('🛡️ Admin Dashboard initialized');
+        console.log('🛡️ Admin Dashboard initialized successfully');
     }
     
     verifySession() {
@@ -57,6 +72,12 @@ class AdminDashboard {
     async apiCall(endpoint, options = {}) {
         const token = this.getAdminToken();
         
+        if (!token) {
+            console.error('No admin token found');
+            this.logout();
+            return null;
+        }
+        
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -66,19 +87,24 @@ class AdminDashboard {
         };
         
         try {
+            console.log(`Making API call: /api/admin${endpoint}`);
             const response = await fetch(`/api/admin${endpoint}`, config);
             
             if (response.status === 401) {
-                // Session expired
+                console.error('Session expired or unauthorized');
                 this.logout();
                 return null;
             }
             
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API Error ${response.status}:`, errorText);
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            return await response.json();
+            const result = await response.json();
+            console.log(`API call successful: /api/admin${endpoint}`, result);
+            return result;
         } catch (error) {
             console.error(`API call failed: ${endpoint}`, error);
             return null;
@@ -261,6 +287,8 @@ class AdminDashboard {
     }
     
     logout() {
+        console.log('Logging out admin user');
+        
         // Clear admin session cookie
         document.cookie = 'adminSession=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         

@@ -175,7 +175,9 @@
                 
                 if (response.ok) {
                     // Set session cookie and redirect
-                    document.cookie = `adminSession=${result.token}; path=/; max-age=86400; secure; samesite=strict`;
+                    const isSecure = window.location.protocol === 'https:';
+                    const cookieOptions = `path=/; max-age=86400; samesite=strict${isSecure ? '; secure' : ''}`;
+                    document.cookie = `adminSession=${result.token}; ${cookieOptions}`;
                     window.location.href = '/proadmin';
                 } else {
                     throw new Error(result.error || 'Login failed');
