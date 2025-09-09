@@ -118,8 +118,12 @@ class AdminDashboard {
     }
     
     initMap() {
-        // Initialize Leaflet map
-        this.map = L.map('map').setView([39.8283, -98.5795], 4); // Center of USA
+        // Initialize Leaflet map with proper zoom behavior
+        this.map = L.map('map', {
+            scrollWheelZoom: 'center', // Prevents marker drift during wheel zoom
+            zoomAnimation: true,
+            markerZoomAnimation: true
+        }).setView([39.8283, -98.5795], 4); // Center of USA
         
         // Add tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -127,7 +131,7 @@ class AdminDashboard {
             maxZoom: 18
         }).addTo(this.map);
         
-        console.log('🗺️ Map initialized');
+        console.log('🗺️ Map initialized with proper zoom behavior');
     }
     
     async loadStats() {
@@ -177,16 +181,28 @@ class AdminDashboard {
         this.markers.forEach(marker => this.map.removeLayer(marker));
         this.markers = [];
         
-        // Add new markers
+        // Add new markers with proper iconAnchor to prevent drift
         posts.forEach(post => {
             if (post.latitude && post.longitude) {
-                const marker = L.circleMarker([post.latitude, post.longitude], {
-                    radius: 6,
-                    fillColor: this.getChannelColor(post.channel),
-                    color: 'white',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.8
+                // Create custom colored icon with proper anchor point
+                const markerColor = this.getChannelColor(post.channel);
+                const customIcon = L.divIcon({
+                    className: 'custom-map-marker',
+                    html: `<div style="
+                        width: 16px;
+                        height: 16px;
+                        background-color: ${markerColor};
+                        border: 2px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    "></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8], // Center the marker properly - this prevents drift!
+                    popupAnchor: [0, -8]
+                });
+                
+                const marker = L.marker([post.latitude, post.longitude], {
+                    icon: customIcon
                 });
                 
                 // Create popup content
