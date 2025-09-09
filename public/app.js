@@ -39,6 +39,7 @@ class GroupdeedoApp {
     
     showTosModal() {
         document.getElementById('tosModal').style.display = 'flex';
+        document.getElementById('loadingOverlay').style.display = 'none';
     }
     
     hideTosModal() {
@@ -454,20 +455,24 @@ class GroupdeedoApp {
         const qrContainer = document.getElementById('qrCode');
         qrContainer.innerHTML = '';
         
-        // Generate new QR code
-        QRCode.toCanvas(qrContainer, shareUrl, {
-            width: 200,
-            margin: 2,
-            color: {
-                dark: '#333',
-                light: '#fff'
-            }
-        }, (error) => {
-            if (error) {
-                console.error('QR Code generation error:', error);
-                qrContainer.innerHTML = '<p>Failed to generate QR code</p>';
-            }
-        });
+        // Generate new QR code (if library is available)
+        if (typeof QRCode !== 'undefined') {
+            QRCode.toCanvas(qrContainer, shareUrl, {
+                width: 200,
+                margin: 2,
+                color: {
+                    dark: '#333',
+                    light: '#fff'
+                }
+            }, (error) => {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    qrContainer.innerHTML = '<p>Failed to generate QR code</p>';
+                }
+            });
+        } else {
+            qrContainer.innerHTML = '<div style="width: 200px; height: 200px; border: 2px solid #ccc; display: flex; align-items: center; justify-content: center; text-align: center; background: #f5f5f5; border-radius: 8px;"><p style="margin: 0; color: #666;">QR Code<br>Not Available</p></div>';
+        }
         
         // Set share URL
         document.getElementById('shareUrl').value = shareUrl;
