@@ -408,21 +408,42 @@ class GroupdeedoApp {
         const file = event.target.files[0];
         if (!file) return;
         
-        // Check file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            this.showNotification('Image too large. Maximum size is 10MB.', 'error');
-            return;
-        }
-        
-        // Check file type
+        // Check file type first
         if (!file.type.startsWith('image/')) {
             this.showNotification('Please select an image file.', 'error');
             return;
         }
         
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.selectedImageData = e.target.result;
+        // Check for extremely large files that might cause memory issues
+        if (file.size > 50 * 1024 * 1024) { // 50MB+
+            this.showNotification('Image is too large. Please select a smaller image (under 50MB).', 'error');
+            return;
+        }
+        
+        // Show processing notification for large images
+        if (file.size > 2 * 1024 * 1024) { // 2MB+
+            this.showNotification('Processing large image...', 'info');
+        }
+        
+        // Process image with compression if needed
+        this.processImage(file);
+    }
+    
+    async processImage(file) {
+        try {
+            // Check if compression is needed (file > 2MB or very large dimensions)
+            const needsCompression = file.size > 2 * 1024 * 1024;
+            
+            if (needsCompression) {
+                console.log(`📷 Compressing image: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                this.showNotification('Compressing large image...', 'info');
+                const compressedDataUrl = await this.compressImage(file);
+                this.selectedImageData = compressedDataUrl;
+            } else {
+                // Small images can be processed normally
+                const dataUrl = await this.fileToDataUrl(file);
+                this.selectedImageData = dataUrl;
+            }
             
             // Show preview
             const preview = document.getElementById('imagePreview');
@@ -431,9 +452,148 @@ class GroupdeedoApp {
             preview.style.display = 'block';
             
             this.toggleSendButton();
-        };
-        
-        reader.readAsDataURL(file);
+            
+            // Calculate and show final size
+            const finalSize = Math.round(this.selectedImageData.length * 0.75); // Base64 is ~33% larger
+            const finalSizeMB = (finalSize / 1024 / 1024).toFixed(1);
+            console.log(`📷 Final image size: ${finalSizeMB}MB`);
+            
+            // Show success message for compressed images
+            if (needsCompression) {
+                const originalSizeMB = (file.size / 1024 / 1024).toFixed(1);
+                this.showNotification(`Image ready! Compressed from ${originalSizeMB}MB to ${finalSizeMB}MB`, 'success');
+            }
+            
+        } catch (error) {
+            console.error('Error processing image:', error);
+            this.showNotification('Failed to process image. Please try a different image.', 'error');
+            
+            // Reset image input
+            document.getElementById('imageInput').value = '';
+        }
+    }
+    
+    fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    compressImage(file, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                try {
+                    // Calculate new dimensions while maintaining aspect ratio
+                    let { width, height } = img;
+                    const originalWidth = width;
+                    const originalHeight = height;
+                    
+                    console.log(`📷 Original dimensions: ${width}x${height}`);
+                    
+                    // For very large images, use more aggressive scaling
+                    let targetMaxWidth = maxWidth;
+                    let targetMaxHeight = maxHeight;
+                    
+                    if (file.size > 10 * 1024 * 1024) { // 10MB+
+                        targetMaxWidth = 1280; // More aggressive for very large files
+                        targetMaxHeight = 720;
+                    }
+                    
+                    // Scale down if image is too large
+                    if (width > targetMaxWidth || height > targetMaxHeight) {
+                        const aspectRatio = width / height;
+                        
+                        if (width > height) {
+                            width = targetMaxWidth;
+                            height = width / aspectRatio;
+                        } else {
+                            height = targetMaxHeight;
+                            width = height * aspectRatio;
+                        }
+                        
+                        // Ensure we don't exceed the other dimension
+                        if (height > targetMaxHeight) {
+                            height = targetMaxHeight;
+                            width = height * aspectRatio;
+                        }
+                        if (width > targetMaxWidth) {
+                            width = targetMaxWidth;
+                            height = width / aspectRatio;
+                        }
+                    }
+                    
+                    // Round dimensions to avoid fractional pixels
+                    width = Math.round(width);
+                    height = Math.round(height);
+                    
+                    console.log(`📷 Target dimensions: ${width}x${height}`);
+                    
+                    // Set canvas size
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Improve image quality during scaling
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // Draw and compress image
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Start with initial quality
+                    let currentQuality = quality;
+                    let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+                    let finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
+                    
+                    console.log(`📷 First compression: ${(file.size / 1024 / 1024).toFixed(1)}MB → ~${finalSize}MB (quality: ${currentQuality})`);
+                    
+                    // If still too large, progressively reduce quality
+                    while (finalSize > 8 && currentQuality > 0.3) { // Keep under 8MB, minimum quality 0.3
+                        currentQuality -= 0.1;
+                        dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+                        finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
+                        console.log(`📷 Further compression: ~${finalSize}MB (quality: ${currentQuality.toFixed(1)})`);
+                    }
+                    
+                    // If still too large, try smaller dimensions
+                    if (finalSize > 8) {
+                        console.log('📷 Reducing dimensions further...');
+                        const newWidth = Math.round(width * 0.8);
+                        const newHeight = Math.round(height * 0.8);
+                        
+                        canvas.width = newWidth;
+                        canvas.height = newHeight;
+                        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                        dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
+                        
+                        console.log(`📷 Final dimensions: ${newWidth}x${newHeight}, size: ~${finalSize}MB`);
+                    }
+                    
+                    resolve(dataUrl);
+                    
+                } catch (error) {
+                    console.error('Error in compression process:', error);
+                    reject(error);
+                }
+            };
+            
+            img.onerror = () => reject(new Error('Failed to load image for compression'));
+            
+            // Load the image
+            const reader = new FileReader();
+            reader.onload = e => {
+                img.src = e.target.result;
+            };
+            reader.onerror = () => reject(new Error('Failed to read image file'));
+            reader.readAsDataURL(file);
+        });
     }
     
     removeSelectedImage() {
