@@ -367,6 +367,12 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Debug logging
+        console.log('🔧 Dashboard HTML loaded');
+        console.log('🔧 Current cookies:', document.cookie);
+        console.log('🔧 Has adminSession:', document.cookie.includes('adminSession'));
+    </script>
     <script src="/admin/admin-dashboard.js"></script>
 </body>
 </html>

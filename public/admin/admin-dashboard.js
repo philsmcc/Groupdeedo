@@ -1,5 +1,6 @@
 class AdminDashboard {
     constructor() {
+        console.log('🔧 AdminDashboard constructor called');
         this.map = null;
         this.markers = [];
         this.stats = {};
@@ -321,6 +322,7 @@ window.logout = () => dashboard.logout();
 // Initialize dashboard when page loads
 let dashboard;
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🔧 DOMContentLoaded event fired');
     dashboard = new AdminDashboard();
 });
 
