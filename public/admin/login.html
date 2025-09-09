@@ -177,9 +177,13 @@
                 if (response.ok) {
                     // Set session cookie and redirect
                     const isSecure = window.location.protocol === 'https:';
-                    const cookieOptions = `path=/; max-age=86400; samesite=strict${isSecure ? '; secure' : ''}`;
+                    const cookieOptions = `path=/; max-age=86400; samesite=lax${isSecure ? '; secure' : ''}`;
                     document.cookie = `adminSession=${result.token}; ${cookieOptions}`;
-                    window.location.href = '/proadmin';
+                    
+                    // Wait a moment for cookie to be set before redirect
+                    setTimeout(() => {
+                        window.location.href = '/proadmin';
+                    }, 100);
                 } else {
                     throw new Error(result.error || 'Login failed');
                 }

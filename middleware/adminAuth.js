@@ -71,12 +71,21 @@ class AdminAuth {
     // Middleware for admin routes
     requireAuth(req, res, next) {
         // Check for session token in cookies or headers
-        const token = req.cookies?.adminSession || req.headers['x-admin-token'];
+        const cookieToken = req.cookies?.adminSession;
+        const headerToken = req.headers['x-admin-token'];
+        const token = cookieToken || headerToken;
+        
+        // Debug logging
+        console.log(`🔐 Admin auth check for ${req.path}`);
+        console.log(`   Cookie token: ${cookieToken ? 'present' : 'missing'}`);
+        console.log(`   Header token: ${headerToken ? 'present' : 'missing'}`);
+        console.log(`   Session valid: ${this.verifySession(token)}`);
         
         if (this.verifySession(token)) {
             req.adminSession = token;
             next();
         } else {
+            console.log(`❌ Admin auth failed for ${req.path}`);
             if (req.path.startsWith('/api/')) {
                 res.status(401).json({ error: 'Unauthorized' });
             } else {

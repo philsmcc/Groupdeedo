@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Cookie Debug</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+    <h1>Admin Cookie & Session Debug</h1>
+    
+    <h3>Step 1: Check Current Cookies</h3>
+    <button onclick="checkCookies()">Check Cookies</button>
+    <div id="cookieResults"></div>
+    
+    <h3>Step 2: Login and Set Cookie (like login page)</h3>
+    <button onclick="loginLikeMainPage()">Login Like Main Page</button>
+    <div id="loginResults"></div>
+    
+    <h3>Step 3: Test Admin Dashboard Access</h3>
+    <button onclick="testDashboardAccess()">Test Dashboard Access</button>
+    <div id="dashboardResults"></div>
+    
+    <h3>Step 4: Test API Access</h3>
+    <button onclick="testApiAccess()">Test API Access</button>
+    <div id="apiResults"></div>
+    
+    <script>
+        function checkCookies() {
+            const results = document.getElementById('cookieResults');
+            results.innerHTML = `
+                <strong>All cookies:</strong> ${document.cookie}<br>
+                <strong>Has adminSession:</strong> ${document.cookie.includes('adminSession')}<br>
+                <strong>Domain:</strong> ${window.location.hostname}<br>
+                <strong>Protocol:</strong> ${window.location.protocol}<br>
+                <strong>Path:</strong> ${window.location.pathname}
+            `;
+        }
+        
+        async function loginLikeMainPage() {
+            const results = document.getElementById('loginResults');
+            results.innerHTML = 'Logging in like main page...<br>';
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: 'GroupdeedoAdmin2024!'})
+                });
+                
+                const result = await response.json();
+                results.innerHTML += `Login response: ${response.status}<br>`;
+                
+                if (result.token) {
+                    // Set cookie exactly like the main login page does
+                    const isSecure = window.location.protocol === 'https:';
+                    const cookieOptions = `path=/; max-age=86400; samesite=strict${isSecure ? '; secure' : ''}`;
+                    const cookieString = `adminSession=${result.token}; ${cookieOptions}`;
+                    
+                    results.innerHTML += `Setting cookie: ${cookieString}<br>`;
+                    document.cookie = cookieString;
+                    
+                    // Check if it was set
+                    setTimeout(() => {
+                        results.innerHTML += `Cookie set successfully: ${document.cookie.includes('adminSession')}<br>`;
+                        checkCookies();
+                    }, 100);
+                }
+            } catch (error) {
+                results.innerHTML += `Error: ${error.message}<br>`;
+            }
+        }
+        
+        async function testDashboardAccess() {
+            const results = document.getElementById('dashboardResults');
+            results.innerHTML = 'Testing dashboard access...<br>';
+            
+            try {
+                const response = await fetch('/proadmin', {
+                    credentials: 'include'
+                });
+                
+                results.innerHTML += `Dashboard response: ${response.status}<br>`;
+                results.innerHTML += `Final URL: ${response.url}<br>`;
+                
+                if (response.url.includes('login')) {
+                    results.innerHTML += '❌ Redirected to login - authentication failed<br>';
+                } else {
+                    results.innerHTML += '✅ Dashboard access successful<br>';
+                }
+            } catch (error) {
+                results.innerHTML += `Error: ${error.message}<br>`;
+            }
+        }
+        
+        async function testApiAccess() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = 'Testing API access...<br>';
+            
+            try {
+                // Test with credentials: 'include' to send cookies
+                const response = await fetch('/api/admin/stats', {
+                    credentials: 'include'
+                });
+                
+                results.innerHTML += `API response: ${response.status}<br>`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `✅ API success - Total posts: ${data.totalPosts}<br>`;
+                } else {
+                    const errorText = await response.text();
+                    results.innerHTML += `❌ API failed: ${errorText}<br>`;
+                }
+            } catch (error) {
+                results.innerHTML += `Error: ${error.message}<br>`;
+            }
+        }
+        
+        // Auto-check cookies on load
+        window.addEventListener('load', checkCookies);
+    </script>
+</body>
+</html>

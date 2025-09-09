@@ -83,6 +83,7 @@ class AdminDashboard {
                 'Content-Type': 'application/json',
                 'X-Admin-Token': token
             },
+            credentials: 'include', // Ensure cookies are sent
             ...options
         };
         
