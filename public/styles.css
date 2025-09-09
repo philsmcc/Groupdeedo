@@ -52,6 +52,8 @@ body {
     margin: 0 auto;
     background-color: var(--surface-color);
     position: relative;
+    box-sizing: border-box; /* Include padding and borders in height calculation */
+    overflow: hidden; /* Prevent any overflow beyond viewport */
 }
 
 /* Header */
@@ -62,6 +64,8 @@ body {
     box-shadow: var(--shadow-medium);
     position: relative;
     z-index: 100;
+    flex-shrink: 0; /* Prevent this from shrinking */
+    box-sizing: border-box; /* Include padding in height calculation */
 }
 
 .header-content {
@@ -268,6 +272,7 @@ body {
     overflow-y: auto;
     padding: var(--spacing-md);
     background-color: var(--background-color);
+    min-height: 0; /* Allow flexbox to shrink this element */
 }
 
 .messages {
@@ -357,6 +362,8 @@ body {
     padding: var(--spacing-md);
     border-top: 1px solid var(--border-color);
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    flex-shrink: 0; /* Prevent this from shrinking */
+    box-sizing: border-box; /* Include border in height calculation */
 }
 
 .input-group {
