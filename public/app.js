@@ -5,12 +5,15 @@ class GroupdeedoApp {
             displayName: 'Anonymous',
             latitude: null,
             longitude: null,
-            radius: 10,
+            radius: 5, // Default changed to 5 miles
             channel: ''
         };
         this.isConnected = false;
         this.hasAgreedToTos = false;
         this.watchPositionId = null;
+        
+        // Load saved user settings from localStorage
+        this.loadUserSettings();
         
         this.init();
     }
@@ -22,6 +25,58 @@ class GroupdeedoApp {
         
         // Parse URL parameters for channel sharing
         this.parseUrlParams();
+        
+        // Initialize settings UI with loaded values
+        this.initializeSettingsUI();
+    }
+    
+    loadUserSettings() {
+        try {
+            const savedSettings = localStorage.getItem('groupdeedo_user_settings');
+            if (savedSettings) {
+                const parsedSettings = JSON.parse(savedSettings);
+                
+                // Only restore non-location settings (location is always fresh)
+                if (parsedSettings.displayName) {
+                    this.userSettings.displayName = parsedSettings.displayName;
+                }
+                if (parsedSettings.radius && parsedSettings.radius >= 1 && parsedSettings.radius <= 500) {
+                    this.userSettings.radius = parsedSettings.radius;
+                }
+                if (parsedSettings.channel !== undefined) {
+                    this.userSettings.channel = parsedSettings.channel;
+                }
+                
+                console.log('Loaded user settings:', this.userSettings);
+            }
+        } catch (error) {
+            console.warn('Failed to load user settings from localStorage:', error);
+        }
+    }
+    
+    saveUserSettings() {
+        try {
+            // Only save persistent settings (not location data for privacy)
+            const settingsToSave = {
+                displayName: this.userSettings.displayName,
+                radius: this.userSettings.radius,
+                channel: this.userSettings.channel
+            };
+            
+            localStorage.setItem('groupdeedo_user_settings', JSON.stringify(settingsToSave));
+            console.log('Saved user settings:', settingsToSave);
+        } catch (error) {
+            console.warn('Failed to save user settings to localStorage:', error);
+        }
+    }
+    
+    initializeSettingsUI() {
+        // Set initial form values to match loaded settings
+        document.getElementById('displayName').value = this.userSettings.displayName;
+        document.getElementById('radiusSlider').value = this.userSettings.radius;
+        document.getElementById('radiusValue').textContent = this.userSettings.radius;
+        document.getElementById('channelName').value = this.userSettings.channel;
+        this.toggleShareButton();
     }
     
     checkTosAgreement() {
@@ -95,6 +150,7 @@ class GroupdeedoApp {
         
         document.getElementById('displayName').addEventListener('input', (e) => {
             this.userSettings.displayName = e.target.value || 'Anonymous';
+            this.saveUserSettings(); // Save immediately for better UX
             throttledUpdateSettings();
         });
         
@@ -102,11 +158,13 @@ class GroupdeedoApp {
             const value = parseInt(e.target.value);
             this.userSettings.radius = value;
             document.getElementById('radiusValue').textContent = value;
+            this.saveUserSettings(); // Save immediately for better UX
             throttledUpdateSettings();
         });
         
         document.getElementById('channelName').addEventListener('input', (e) => {
             this.userSettings.channel = e.target.value;
+            this.saveUserSettings(); // Save immediately for better UX
             throttledUpdateSettings();
             this.toggleShareButton();
         });
