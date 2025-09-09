@@ -366,13 +366,32 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // Debug logging
         console.log('🔧 Dashboard HTML loaded');
         console.log('🔧 Current cookies:', document.cookie);
         console.log('🔧 Has adminSession:', document.cookie.includes('adminSession'));
+        
+        // Wait for Leaflet to load before initializing dashboard
+        function initializeDashboard() {
+            console.log('🔧 Checking if Leaflet is loaded...');
+            if (typeof L !== 'undefined') {
+                console.log('🔧 Leaflet loaded, initializing dashboard');
+                // Load dashboard script
+                const script = document.createElement('script');
+                script.src = '/admin/admin-dashboard.js';
+                script.onload = () => console.log('🔧 Dashboard script loaded');
+                script.onerror = () => console.error('🔧 Failed to load dashboard script');
+                document.head.appendChild(script);
+            } else {
+                console.log('🔧 Leaflet not ready, retrying...');
+                setTimeout(initializeDashboard, 100);
+            }
+        }
+        
+        // Start initialization after DOM is ready
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
     </script>
-    <script src="/admin/admin-dashboard.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>

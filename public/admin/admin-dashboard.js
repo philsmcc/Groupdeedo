@@ -30,13 +30,17 @@ class AdminDashboard {
         // Load initial data
         console.log('📊 Loading initial data...');
         try {
+            console.log('📊 Step 1: Loading stats');
             await this.loadStats();
+            console.log('📊 Step 2: Loading map');
             await this.updateMap();
+            console.log('📊 Step 3: Loading messages');
             await this.updateMessages();
             
             console.log('✅ Initial data loaded successfully');
         } catch (error) {
             console.error('❌ Failed to load initial data:', error);
+            console.error('❌ Error stack:', error.stack);
         }
         
         // Set up auto-refresh every 30 seconds
@@ -127,18 +131,40 @@ class AdminDashboard {
     }
     
     async loadStats() {
+        console.log('📊 Loading stats...');
         const stats = await this.apiCall('/stats');
-        if (!stats) return;
+        console.log('📊 Stats received:', stats);
+        
+        if (!stats) {
+            console.log('❌ No stats returned from API');
+            return;
+        }
         
         this.stats = stats;
         
-        // Update stat cards
-        document.getElementById('totalPosts').textContent = stats.totalPosts || '0';
-        document.getElementById('postsLastHour').textContent = stats.postsLastHour || '0';
-        document.getElementById('postsLastDay').textContent = stats.postsLastDay || '0';
-        document.getElementById('uniqueChannels').textContent = stats.uniqueChannels || '0';
-        document.getElementById('uniqueSessions').textContent = stats.uniqueSessions || '0';
-        document.getElementById('postsWithImages').textContent = stats.postsWithImages || '0';
+        // Update stat cards with debugging
+        console.log('📊 Updating stat cards...');
+        const elements = {
+            totalPosts: document.getElementById('totalPosts'),
+            postsLastHour: document.getElementById('postsLastHour'), 
+            postsLastDay: document.getElementById('postsLastDay'),
+            uniqueChannels: document.getElementById('uniqueChannels'),
+            uniqueSessions: document.getElementById('uniqueSessions'),
+            postsWithImages: document.getElementById('postsWithImages')
+        };
+        
+        // Check if elements exist
+        for (const [key, element] of Object.entries(elements)) {
+            if (!element) {
+                console.error(`❌ Element not found: ${key}`);
+            } else {
+                const value = stats[key] || '0';
+                console.log(`📊 Setting ${key} to ${value}`);
+                element.textContent = value;
+            }
+        }
+        
+        console.log('📊 Stats update complete');
     }
     
     async updateMap() {
@@ -319,12 +345,10 @@ window.updateMap = () => dashboard.updateMap();
 window.updateMessages = () => dashboard.updateMessages();
 window.logout = () => dashboard.logout();
 
-// Initialize dashboard when page loads
+// Initialize dashboard when script loads (called by HTML after Leaflet is ready)
 let dashboard;
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🔧 DOMContentLoaded event fired');
-    dashboard = new AdminDashboard();
-});
+console.log('🔧 Dashboard script executing');
+dashboard = new AdminDashboard();
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
