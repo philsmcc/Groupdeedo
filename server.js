@@ -67,6 +67,9 @@ io.on('connection', (socket) => {
     socket.on('updateSettings', (settings) => {
         const user = activeUsers.get(socket.id);
         if (user) {
+            // Check if settings actually changed to avoid unnecessary updates
+            const oldUser = { ...user };
+            
             user.displayName = settings.displayName || user.displayName;
             user.latitude = settings.latitude || user.latitude;
             user.longitude = settings.longitude || user.longitude;
@@ -75,8 +78,14 @@ io.on('connection', (socket) => {
             
             activeUsers.set(socket.id, user);
             
-            // Send updated posts based on new settings
-            sendFilteredPosts(socket);
+            // Only send updated posts if meaningful settings changed (location, radius, or channel)
+            const locationChanged = oldUser.latitude !== user.latitude || oldUser.longitude !== user.longitude;
+            const radiusChanged = oldUser.radius !== user.radius;
+            const channelChanged = oldUser.channel !== user.channel;
+            
+            if (locationChanged || radiusChanged || channelChanged) {
+                sendFilteredPosts(socket);
+            }
         }
     });
     

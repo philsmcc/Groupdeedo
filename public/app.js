@@ -83,22 +83,31 @@ class GroupdeedoApp {
             this.closeSettings();
         });
         
-        // Settings inputs
+        // Settings inputs (throttled to prevent excessive updates)
+        let settingsUpdateTimeout = null;
+        
+        const throttledUpdateSettings = () => {
+            clearTimeout(settingsUpdateTimeout);
+            settingsUpdateTimeout = setTimeout(() => {
+                this.updateSettings();
+            }, 500); // Wait 500ms after user stops changing settings
+        };
+        
         document.getElementById('displayName').addEventListener('input', (e) => {
             this.userSettings.displayName = e.target.value || 'Anonymous';
-            this.updateSettings();
+            throttledUpdateSettings();
         });
         
         document.getElementById('radiusSlider').addEventListener('input', (e) => {
             const value = parseInt(e.target.value);
             this.userSettings.radius = value;
             document.getElementById('radiusValue').textContent = value;
-            this.updateSettings();
+            throttledUpdateSettings();
         });
         
         document.getElementById('channelName').addEventListener('input', (e) => {
             this.userSettings.channel = e.target.value;
-            this.updateSettings();
+            throttledUpdateSettings();
             this.toggleShareButton();
         });
         
@@ -183,12 +192,19 @@ class GroupdeedoApp {
                 statusEl.textContent = '📍 Location found';
                 this.updateSettings();
                 
-                // Start watching position for updates
+                // Start watching position for updates (throttled to prevent excessive updates)
+                let lastLocationUpdate = 0;
+                const LOCATION_UPDATE_THROTTLE = 30000; // Only update location every 30 seconds
+                
                 this.watchPositionId = navigator.geolocation.watchPosition(
                     (pos) => {
-                        this.userSettings.latitude = pos.coords.latitude;
-                        this.userSettings.longitude = pos.coords.longitude;
-                        this.updateSettings();
+                        const now = Date.now();
+                        if (now - lastLocationUpdate > LOCATION_UPDATE_THROTTLE) {
+                            this.userSettings.latitude = pos.coords.latitude;
+                            this.userSettings.longitude = pos.coords.longitude;
+                            this.updateSettings();
+                            lastLocationUpdate = now;
+                        }
                     },
                     null,
                     options
@@ -378,7 +394,25 @@ class GroupdeedoApp {
             welcomeMsg.remove();
         }
         
-        // Clear existing messages
+        // Check if posts are the same as currently displayed to avoid unnecessary updates
+        const currentPosts = container.querySelectorAll('.message');
+        if (currentPosts.length === posts.length) {
+            // Quick check if content is the same - compare timestamps of first and last posts
+            if (posts.length > 0 && currentPosts.length > 0) {
+                const firstCurrentTime = currentPosts[0].querySelector('.message-time')?.textContent;
+                const lastCurrentTime = currentPosts[currentPosts.length - 1].querySelector('.message-time')?.textContent;
+                const firstNewTime = this.getTimeAgo(new Date(posts[0].timestamp));
+                const lastNewTime = this.getTimeAgo(new Date(posts[posts.length - 1].timestamp));
+                
+                if (firstCurrentTime && lastCurrentTime && 
+                    firstCurrentTime === firstNewTime && lastCurrentTime === lastNewTime) {
+                    // Posts appear to be the same, skip update
+                    return;
+                }
+            }
+        }
+        
+        // Clear existing messages only if we need to update
         container.innerHTML = '';
         
         // Add all posts
