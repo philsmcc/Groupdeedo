@@ -74,7 +74,13 @@ io.on('connection', (socket) => {
             user.latitude = settings.latitude || user.latitude;
             user.longitude = settings.longitude || user.longitude;
             user.radius = settings.radius || user.radius;
-            user.channel = settings.channel !== undefined ? settings.channel : user.channel;
+            user.channel = settings.channel !== undefined ? normalizeChannel(settings.channel) : user.channel;
+            
+            console.log(`⚙️  User ${user.displayName} (${socket.id}) updated settings:`, {
+                channel: user.channel,
+                radius: user.radius,
+                location: user.latitude ? `${user.latitude.toFixed(6)}, ${user.longitude.toFixed(6)}` : 'none'
+            });
             
             activeUsers.set(socket.id, user);
             
@@ -106,9 +112,11 @@ io.on('connection', (socket) => {
                 image: messageData.image || null,
                 latitude: user.latitude,
                 longitude: user.longitude,
-                channel: user.channel || '',
+                channel: normalizeChannel(user.channel),
                 timestamp: new Date().toISOString()
             };
+            
+            console.log(`📤 User ${user.displayName} (${socket.id}) sending message to channel: [${post.channel}]`);
             
             // Save to database
             await db.createPost(post);
@@ -141,6 +149,14 @@ io.on('connection', (socket) => {
     setTimeout(() => sendFilteredPosts(socket), 1000);
 });
 
+// Helper function to normalize channel names for consistent comparison
+function normalizeChannel(channel) {
+    if (channel === null || channel === undefined) {
+        return '';
+    }
+    return String(channel).trim();
+}
+
 // Function to send filtered posts to a specific user
 async function sendFilteredPosts(socket) {
     const user = activeUsers.get(socket.id);
@@ -152,7 +168,7 @@ async function sendFilteredPosts(socket) {
         const allPosts = await db.getRecentPosts(100); // Get last 100 posts
         const filteredPosts = allPosts.filter(post => {
             // Channel filter: must match exactly (empty matches empty)
-            if (post.channel !== user.channel) {
+            if (normalizeChannel(post.channel) !== normalizeChannel(user.channel)) {
                 return false;
             }
             
@@ -174,11 +190,21 @@ async function sendFilteredPosts(socket) {
 
 // Function to broadcast new post to relevant users
 function broadcastToRelevantUsers(post) {
+    console.log(`📡 Broadcasting post from channel: "${post.channel}" to ${activeUsers.size} users`);
+    let matchingUsers = 0;
+    
     for (const [socketId, user] of activeUsers.entries()) {
         if (!user.latitude || !user.longitude) continue;
         
+        console.log(`   👤 User ${user.displayName} (${socketId}) is in channel: [${user.channel}]`);
+        
         // Channel filter
-        if (post.channel !== user.channel) continue;
+        const normalizedPostChannel = normalizeChannel(post.channel);
+        const normalizedUserChannel = normalizeChannel(user.channel);
+        if (normalizedPostChannel !== normalizedUserChannel) {
+            console.log(`   ❌ Channel mismatch: post=[${normalizedPostChannel}] vs user=[${normalizedUserChannel}]`);
+            continue;
+        }
         
         // Distance filter
         const distance = calculateDistance(
@@ -186,10 +212,18 @@ function broadcastToRelevantUsers(post) {
             post.latitude, post.longitude
         );
         
+        console.log(`   📍 Distance: ${distance.toFixed(2)} miles (radius: ${user.radius})`);
+        
         if (distance <= user.radius) {
+            console.log(`   ✅ Sending post to ${user.displayName}`);
             io.to(socketId).emit('newPost', post);
+            matchingUsers++;
+        } else {
+            console.log(`   ❌ Too far: ${distance.toFixed(2)} > ${user.radius} miles`);
         }
     }
+    
+    console.log(`📊 Post broadcast complete: ${matchingUsers} users received the message`);
 }
 
 // API Routes
