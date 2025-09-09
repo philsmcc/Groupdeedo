@@ -19,6 +19,7 @@ function uuidv4() {
 // Import custom modules
 const Database = require('./models/database');
 const { calculateDistance, isWithinRadius } = require('./utils/location');
+const CleanupManager = require('./scripts/cleanup');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +35,35 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Initialize database
 const db = new Database();
+
+// Initialize cleanup manager (optional built-in scheduling)
+const ENABLE_AUTO_CLEANUP = process.env.ENABLE_AUTO_CLEANUP === 'true';
+const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS, 10) || 24;
+const CLEANUP_DAYS_OLD = parseInt(process.env.CLEANUP_DAYS_OLD, 10) || 30;
+
+let cleanupInterval = null;
+
+if (ENABLE_AUTO_CLEANUP) {
+    console.log(`🧹 Auto-cleanup enabled: every ${CLEANUP_INTERVAL_HOURS} hours, deleting posts older than ${CLEANUP_DAYS_OLD} days`);
+    
+    const performCleanup = async () => {
+        try {
+            console.log('🧹 Running scheduled cleanup...');
+            const cleanup = new CleanupManager();
+            const result = await cleanup.runCleanup(CLEANUP_DAYS_OLD, false);
+            console.log(`✅ Scheduled cleanup completed: ${result.message || 'No posts to delete'}`);
+            await cleanup.close();
+        } catch (error) {
+            console.error('❌ Scheduled cleanup failed:', error.message);
+        }
+    };
+    
+    // Run cleanup every N hours (convert to milliseconds)
+    cleanupInterval = setInterval(performCleanup, CLEANUP_INTERVAL_HOURS * 60 * 60 * 1000);
+    
+    // Run initial cleanup 5 minutes after startup
+    setTimeout(performCleanup, 5 * 60 * 1000);
+}
 
 // Middleware - Helmet disabled, all security headers handled by Nginx
 // app.use(helmet()) - Commented out to prevent header conflicts with Nginx
@@ -232,8 +262,37 @@ app.get('/api/health', (req, res) => {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         activeUsers: activeUsers.size,
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        autoCleanup: {
+            enabled: ENABLE_AUTO_CLEANUP,
+            intervalHours: CLEANUP_INTERVAL_HOURS,
+            daysOld: CLEANUP_DAYS_OLD
+        }
     });
+});
+
+// Cleanup management API (for admin purposes)
+app.get('/api/cleanup/stats', async (req, res) => {
+    try {
+        const cleanup = new CleanupManager();
+        const stats = await cleanup.getCleanupStats();
+        await cleanup.close();
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get cleanup stats' });
+    }
+});
+
+app.post('/api/cleanup/run', async (req, res) => {
+    try {
+        const { daysOld = 30, dryRun = true } = req.body;
+        const cleanup = new CleanupManager();
+        const result = await cleanup.runCleanup(daysOld, dryRun);
+        await cleanup.close();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: 'Cleanup failed', message: error.message });
+    }
 });
 
 // Get channel info for sharing
@@ -266,20 +325,29 @@ app.use((err, req, res, next) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
+const gracefulShutdown = () => {
+    console.log('Shutting down gracefully...');
+    
+    // Clear cleanup interval
+    if (cleanupInterval) {
+        clearInterval(cleanupInterval);
+        console.log('Cleanup interval cleared');
+    }
+    
     server.close(() => {
         console.log('Server closed');
         process.exit(0);
     });
+};
+
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received.');
+    gracefulShutdown();
 });
 
 process.on('SIGINT', () => {
-    console.log('SIGINT received. Shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
+    console.log('SIGINT received.');
+    gracefulShutdown();
 });
 
 // Start server

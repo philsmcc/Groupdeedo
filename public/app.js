@@ -408,9 +408,9 @@ class GroupdeedoApp {
         const file = event.target.files[0];
         if (!file) return;
         
-        // Check file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            this.showNotification('Image too large. Maximum size is 5MB.', 'error');
+        // Check file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            this.showNotification('Image too large. Maximum size is 10MB.', 'error');
             return;
         }
         

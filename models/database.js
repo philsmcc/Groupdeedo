@@ -258,6 +258,93 @@ class Database {
         });
     }
     
+    // Data cleanup methods
+    deleteOldPosts(daysOld = 30) {
+        return new Promise((resolve, reject) => {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+            
+            // Count posts that will be deleted (for logging)
+            const countQuery = `
+                SELECT COUNT(*) as count FROM posts 
+                WHERE created_at < datetime('now', '-${daysOld} days')
+            `;
+            
+            this.db.get(countQuery, (err, countResult) => {
+                if (err) {
+                    console.error('Error counting old posts:', err);
+                    reject(err);
+                    return;
+                }
+                
+                const postsToDelete = countResult.count;
+                console.log(`🗑️  Found ${postsToDelete} posts older than ${daysOld} days to delete`);
+                
+                if (postsToDelete === 0) {
+                    resolve({ deleted: 0, message: 'No old posts to delete' });
+                    return;
+                }
+                
+                // Delete old posts
+                const deleteQuery = `
+                    DELETE FROM posts 
+                    WHERE created_at < datetime('now', '-${daysOld} days')
+                `;
+                
+                this.db.run(deleteQuery, function(err) {
+                    if (err) {
+                        console.error('Error deleting old posts:', err);
+                        reject(err);
+                    } else {
+                        const actualDeleted = this.changes;
+                        console.log(`✅ Successfully deleted ${actualDeleted} old posts`);
+                        resolve({ 
+                            deleted: actualDeleted, 
+                            message: `Deleted ${actualDeleted} posts older than ${daysOld} days` 
+                        });
+                    }
+                });
+            });
+        });
+    }
+    
+    getOldPostsInfo(daysOld = 30) {
+        return new Promise((resolve, reject) => {
+            const queries = {
+                count: `SELECT COUNT(*) as count FROM posts WHERE created_at < datetime('now', '-${daysOld} days')`,
+                oldest: `SELECT created_at FROM posts ORDER BY created_at ASC LIMIT 1`,
+                newest: `SELECT created_at FROM posts ORDER BY created_at DESC LIMIT 1`,
+                sizeEstimate: `SELECT COUNT(*) * 1024 as estimatedBytes FROM posts WHERE created_at < datetime('now', '-${daysOld} days')`
+            };
+            
+            const results = {};
+            let completed = 0;
+            const total = Object.keys(queries).length;
+            
+            for (const [key, query] of Object.entries(queries)) {
+                this.db.get(query, (err, row) => {
+                    if (err) {
+                        console.error(`Error in cleanup info query ${key}:`, err);
+                        results[key] = key === 'count' || key === 'sizeEstimate' ? 0 : null;
+                    } else {
+                        results[key] = row[Object.keys(row)[0]];
+                    }
+                    
+                    completed++;
+                    if (completed === total) {
+                        resolve({
+                            postsToDelete: results.count,
+                            oldestPost: results.oldest,
+                            newestPost: results.newest,
+                            estimatedSizeKB: Math.round(results.estimatedBytes / 1024),
+                            daysOld: daysOld
+                        });
+                    }
+                });
+            }
+        });
+    }
+    
     close() {
         return new Promise((resolve) => {
             if (this.db) {
