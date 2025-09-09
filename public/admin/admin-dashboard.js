@@ -207,15 +207,34 @@ class AdminDashboard {
                 
                 // Create popup content
                 const popupContent = `
-                    <div style="min-width: 200px;">
+                    <div style="min-width: 200px; max-width: 300px;">
                         <strong>${this.escapeHtml(post.displayName)}</strong>
                         ${post.channel ? `<span class="channel-tag">${this.escapeHtml(post.channel)}</span>` : ''}
                         <br><small>${new Date(post.createdAt).toLocaleString()}</small>
                         <hr style="margin: 5px 0;">
-                        <div style="max-width: 250px; word-wrap: break-word;">
+                        <div style="max-width: 250px; word-wrap: break-word; margin-bottom: 8px;">
                             ${this.escapeHtml(post.message)}
                         </div>
-                        ${post.image ? '<div style="margin-top: 5px;"><em>📷 Contains image</em></div>' : ''}
+                        ${post.image ? `
+                            <div style="margin-top: 8px;">
+                                <img 
+                                    src="${post.image}" 
+                                    alt="Message image"
+                                    style="
+                                        max-width: 150px;
+                                        max-height: 100px;
+                                        border-radius: 6px;
+                                        cursor: pointer;
+                                        object-fit: cover;
+                                        border: 1px solid #ddd;
+                                    "
+                                    onclick="dashboard.showImageModal('${post.image}', '${this.escapeHtml(post.displayName)}', '${this.escapeHtml(post.message)}')"
+                                />
+                                <div style="font-size: 10px; color: #666; text-align: center; margin-top: 2px;">
+                                    Click to view full size
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
                 
@@ -281,7 +300,32 @@ class AdminDashboard {
                 </div>
                 <div class="message-content">
                     ${this.escapeHtml(post.message)}
-                    ${post.image ? '<div style="margin-top: 5px; font-style: italic; color: #666;">📷 Contains image attachment</div>' : ''}
+                    ${post.image ? `
+                        <div class="image-attachment" style="margin-top: 10px;">
+                            <img 
+                                src="${post.image}" 
+                                alt="Message attachment"
+                                class="message-thumbnail"
+                                style="
+                                    max-width: 200px;
+                                    max-height: 150px;
+                                    border-radius: 8px;
+                                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                    cursor: pointer;
+                                    object-fit: cover;
+                                    border: 2px solid #e1e5e9;
+                                    transition: transform 0.2s, box-shadow 0.2s;
+                                "
+                                onclick="dashboard.showImageModal('${post.image}', '${this.escapeHtml(post.displayName)}', '${this.escapeHtml(post.message)}')"
+                                onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'"
+                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'"
+                                loading="lazy"
+                            />
+                            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                                📷 Click to view full size
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
                 <div class="message-meta">
                     <span>📍 ${post.latitude.toFixed(4)}, ${post.longitude.toFixed(4)}</span>
@@ -323,6 +367,143 @@ class AdminDashboard {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    showImageModal(imageSrc, displayName, message) {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'image-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+        
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            max-width: 90vw;
+            max-height: 90vh;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            cursor: default;
+        `;
+        
+        modalContent.innerHTML = `
+            <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                <div style="font-weight: bold; color: #333; margin-bottom: 5px;">
+                    📷 Image from ${this.escapeHtml(displayName)}
+                </div>
+                <div style="font-size: 14px; color: #666; word-wrap: break-word;">
+                    "${this.escapeHtml(message)}"
+                </div>
+            </div>
+            
+            <img 
+                src="${imageSrc}" 
+                alt="Full size image"
+                style="
+                    max-width: 100%;
+                    max-height: 70vh;
+                    border-radius: 8px;
+                    display: block;
+                    margin: 0 auto;
+                    object-fit: contain;
+                "
+            />
+            
+            <div style="text-align: center; margin-top: 15px;">
+                <button 
+                    onclick="this.closest('.image-modal').remove()"
+                    style="
+                        background: #f44336;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        margin-right: 10px;
+                    "
+                >
+                    ✕ Close
+                </button>
+                <button 
+                    onclick="dashboard.downloadImage('${imageSrc}', '${this.escapeHtml(displayName)}')"
+                    style="
+                        background: #4CAF50;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    "
+                >
+                    💾 Download
+                </button>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Animate in
+        setTimeout(() => {
+            modal.style.opacity = '1';
+        }, 10);
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.opacity = '0';
+                setTimeout(() => modal.remove(), 300);
+            }
+        });
+        
+        // Close on Escape key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                modal.style.opacity = '0';
+                setTimeout(() => modal.remove(), 300);
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+        
+        // Prevent content click from closing modal
+        modalContent.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+    
+    downloadImage(imageSrc, displayName) {
+        try {
+            const link = document.createElement('a');
+            link.href = imageSrc;
+            link.download = `groupdeedo-image-${displayName}-${new Date().getTime()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            this.showNotification('Image download started!', 'success');
+        } catch (error) {
+            console.error('Download failed:', error);
+            this.showNotification('Download failed. You can right-click the image to save it.', 'error');
+        }
     }
     
     updateTimestamp() {

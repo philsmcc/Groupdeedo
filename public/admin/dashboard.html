@@ -272,6 +272,70 @@
             text-align: center;
             font-weight: bold;
         }
+
+        /* Image thumbnail and modal styles */
+        .message-thumbnail {
+            transition: all 0.2s ease;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .message-thumbnail:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border-color: #667eea;
+        }
+
+        .image-attachment {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-top: 8px;
+        }
+
+        .image-modal {
+            backdrop-filter: blur(5px);
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .image-modal .modal-content {
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Responsive image handling */
+        @media (max-width: 768px) {
+            .message-thumbnail {
+                max-width: 150px !important;
+                max-height: 100px !important;
+            }
+            
+            .image-modal .modal-content {
+                margin: 10px;
+                max-width: calc(100vw - 20px);
+            }
+        }
+
+        /* Leaflet popup image styles */
+        .leaflet-popup-content img {
+            border-radius: 4px;
+            transition: transform 0.2s ease;
+        }
+
+        .leaflet-popup-content img:hover {
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
