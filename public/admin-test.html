@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Login Test</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+    <h1>Admin Login Test</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <div id="results"></div>
+    
+    <script>
+        async function testLogin() {
+            const results = document.getElementById('results');
+            results.innerHTML = 'Testing login...<br>';
+            
+            try {
+                // Test login
+                results.innerHTML += 'Making login request...<br>';
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: 'GroupdeedoAdmin2024!'})
+                });
+                
+                results.innerHTML += `Login status: ${response.status}<br>`;
+                const result = await response.json();
+                results.innerHTML += 'Login response: ' + JSON.stringify(result) + '<br>';
+                
+                if (result.token) {
+                    // Set cookie
+                    document.cookie = `adminSession=${result.token}; path=/; max-age=86400`;
+                    results.innerHTML += `Cookie set: adminSession=${result.token.substring(0,20)}...<br>`;
+                    
+                    // Check cookie was set
+                    const cookieSet = document.cookie.includes('adminSession=');
+                    results.innerHTML += `Cookie check: ${cookieSet}<br>`;
+                    
+                    // Test API with different methods
+                    results.innerHTML += 'Testing API with cookies...<br>';
+                    try {
+                        const apiResponse = await fetch('/api/admin/stats', {
+                            credentials: 'include'
+                        });
+                        results.innerHTML += `API status: ${apiResponse.status}<br>`;
+                        
+                        if (apiResponse.ok) {
+                            const apiResult = await apiResponse.json();
+                            results.innerHTML += 'API response: ' + JSON.stringify(apiResult).substring(0,200) + '...<br>';
+                        } else {
+                            const errorText = await apiResponse.text();
+                            results.innerHTML += `API error: ${errorText}<br>`;
+                        }
+                    } catch (apiError) {
+                        results.innerHTML += `API fetch error: ${apiError.message}<br>`;
+                    }
+                    
+                    // Test with header instead
+                    results.innerHTML += 'Testing API with header...<br>';
+                    try {
+                        const headerResponse = await fetch('/api/admin/stats', {
+                            headers: {
+                                'X-Admin-Token': result.token
+                            }
+                        });
+                        results.innerHTML += `Header API status: ${headerResponse.status}<br>`;
+                        if (headerResponse.ok) {
+                            const headerResult = await headerResponse.json();
+                            results.innerHTML += 'Header API success<br>';
+                        }
+                    } catch (headerError) {
+                        results.innerHTML += `Header API error: ${headerError.message}<br>`;
+                    }
+                }
+            } catch (error) {
+                results.innerHTML += '<br>Error: ' + error.message + '<br>';
+                results.innerHTML += 'Stack: ' + error.stack + '<br>';
+            }
+        }
+    </script>
+</body>
+</html>
