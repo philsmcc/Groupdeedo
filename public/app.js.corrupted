@@ -1,0 +1,108 @@
+class GroupdeedoApp {
+    constructor() {
+        this.socket = null;
+        this.userSettings = {
+            displayName: 'Anonymous',
+            latitude: null,
+            longitude: null,
+            radius: 10,
+            channel: ''
+        };
+        this.isConnected = false;
+        this.hasAgreedToTos = false;
+        this.watchPositionId = null;
+        
+        this.init();
+    }
+    
+    init() {
+        this.checkTosAgreement();
+        this.setupEventListeners();
+        this.setupAutoResize();
+        
+        // Parse URL parameters for channel sharing
+        this.parseUrlParams();
+    }
+    
+    checkTosAgreement() {
+        // Check if user has already agreed to TOS
+        const agreed = localStorage.getItem('groupdeedo_tos_agreed');
+        if (agreed === 'true') {
+            this.hasAgreedToTos = true;
+            this.showApp();
+            this.requestLocation();
+            this.connectSocket();
+        } else {
+            this.showTosModal();
+        }
+    }
+    
+    showTosModal() {
+        document.getElementById('tosModal').style.display = 'flex';
+    }
+    
+    hideTosModal() {
+        document.getElementById('tosModal').style.display = 'none';
+    }
+    
+    showApp() {
+        document.getElementById('app').style.display = 'flex';
+        document.getElementById('loadingOverlay').style.display = 'none';
+        this.hideTosModal();
+    }
+    
+    parseUrlParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const channelParam = urlParams.get('channel');
+        if (channelParam) {
+            this.userSettings.channel = channelParam;
+            // Update the channel input when app loads
+            setTimeout(() => {
+                document.getElementById('channelName').value = channelParam;
+            }, 100);
+        }
+    }
+    
+    setupEventListeners() {
+        // TOS Agreement
+        document.getElementById('agreeTos').addEventListener('click', () => {
+            localStorage.setItem('groupdeedo_tos_agreed', 'true');
+            this.hasAgreedToTos = true;
+            this.showApp();
+            this.requestLocation();
+            this.connectSocket();
+        });
+        
+        // Settings
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            this.openSettings();
+        });
+        
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            this.closeSettings();
+        });
+        
+        // Settings inputs
+        document.getElementById('displayName').addEventListener('input', (e) => {
+            this.userSettings.displayName = e.target.value || 'Anonymous';
+            this.updateSettings();
+        });
+        
+        document.getElementById('radiusSlider').addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            this.userSettings.radius = value;
+            document.getElementById('radiusValue').textContent = value;
+            this.updateSettings();
+        });
+        
+        document.getElementById('channelName').addEventListener('input', (e) => {
+            this.userSettings.channel = e.target.value;
+            this.updateSettings();
+            this.toggleShareButton();
+        });
+        
+        // Message sending
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();\n                this.sendMessage();
+            }\n        });\n        \n        document.getElementById('sendBtn').addEventListener('click', () => {\n            this.sendMessage();\n        });\n        \n        document.getElementById('messageInput').addEventListener('input', () => {\n            this.toggleSendButton();\n        });\n        \n        // Image handling\n        document.getElementById('imageBtn').addEventListener('click', () => {\n            document.getElementById('imageInput').click();\n        });\n        \n        document.getElementById('imageInput').addEventListener('change', (e) => {\n            this.handleImageSelection(e);\n        });\n        \n        document.getElementById('removeImage').addEventListener('click', () => {\n            this.removeSelectedImage();\n        });\n        \n        // Channel sharing\n        document.getElementById('shareChannel').addEventListener('click', () => {\n            this.showChannelShareModal();\n        });\n        \n        document.getElementById('closeShareModal').addEventListener('click', () => {\n            this.hideChannelShareModal();\n        });\n        \n        document.getElementById('copyUrl').addEventListener('click', () => {\n            this.copyShareUrl();\n        });\n        \n        // Modal backdrop clicks\n        document.getElementById('shareModal').addEventListener('click', (e) => {\n            if (e.target.id === 'shareModal') {\n                this.hideChannelShareModal();\n            }\n        });\n    }\n    \n    setupAutoResize() {\n        const textarea = document.getElementById('messageInput');\n        textarea.addEventListener('input', () => {\n            textarea.style.height = 'auto';\n            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';\n        });\n    }\n    \n    requestLocation() {\n        const statusEl = document.getElementById('locationStatus');\n        \n        if (!navigator.geolocation) {\n            statusEl.textContent = '❌ Geolocation not supported';\n            return;\n        }\n        \n        statusEl.textContent = '📍 Getting location...';\n        \n        const options = {\n            enableHighAccuracy: true,\n            timeout: 10000,\n            maximumAge: 60000 // 1 minute\n        };\n        \n        navigator.geolocation.getCurrentPosition(\n            (position) => {\n                this.userSettings.latitude = position.coords.latitude;\n                this.userSettings.longitude = position.coords.longitude;\n                statusEl.textContent = '📍 Location found';\n                this.updateSettings();\n                \n                // Start watching position for updates\n                this.watchPositionId = navigator.geolocation.watchPosition(\n                    (pos) => {\n                        this.userSettings.latitude = pos.coords.latitude;\n                        this.userSettings.longitude = pos.coords.longitude;\n                        this.updateSettings();\n                    },\n                    null,\n                    options\n                );\n            },\n            (error) => {\n                console.error('Geolocation error:', error);\n                let message = '❌ Location access denied';\n                switch (error.code) {\n                    case error.PERMISSION_DENIED:\n                        message = '❌ Location access denied. Please enable location to use Groupdeedo.';\n                        break;\n                    case error.POSITION_UNAVAILABLE:\n                        message = '❌ Location unavailable';\n                        break;\n                    case error.TIMEOUT:\n                        message = '❌ Location request timed out';\n                        break;\n                }\n                statusEl.textContent = message;\n            },\n            options\n        );\n    }\n    \n    connectSocket() {\n        this.socket = io();\n        \n        this.socket.on('connect', () => {\n            console.log('Connected to server');\n            this.isConnected = true;\n            this.updateConnectionStatus('Connected', 'connected');\n            this.updateSettings(); // Send initial settings\n        });\n        \n        this.socket.on('disconnect', () => {\n            console.log('Disconnected from server');\n            this.isConnected = false;\n            this.updateConnectionStatus('Disconnected', 'disconnected');\n        });\n        \n        this.socket.on('reconnect', () => {\n            console.log('Reconnected to server');\n            this.isConnected = true;\n            this.updateConnectionStatus('Connected', 'connected');\n            this.updateSettings();\n        });\n        \n        this.socket.on('posts', (posts) => {\n            this.displayPosts(posts);\n        });\n        \n        this.socket.on('newPost', (post) => {\n            this.addNewPost(post);\n        });\n        \n        this.socket.on('channelInfo', (info) => {\n            this.displayChannelInfo(info);\n        });\n        \n        this.socket.on('error', (error) => {\n            console.error('Socket error:', error);\n            this.showNotification(error, 'error');\n        });\n    }\n    \n    updateConnectionStatus(text, className) {\n        const statusEl = document.getElementById('connectionStatus');\n        const indicatorEl = statusEl.querySelector('.status-indicator');\n        const textEl = statusEl.querySelector('.status-text');\n        \n        indicatorEl.className = `status-indicator ${className}`;\n        textEl.textContent = text;\n    }\n    \n    updateSettings() {\n        if (this.socket && this.isConnected) {\n            this.socket.emit('updateSettings', this.userSettings);\n        }\n    }\n    \n    openSettings() {\n        const panel = document.getElementById('settingsPanel');\n        panel.classList.add('open');\n        \n        // Update form values\n        document.getElementById('displayName').value = this.userSettings.displayName;\n        document.getElementById('radiusSlider').value = this.userSettings.radius;\n        document.getElementById('radiusValue').textContent = this.userSettings.radius;\n        document.getElementById('channelName').value = this.userSettings.channel;\n        \n        this.toggleShareButton();\n    }\n    \n    closeSettings() {\n        const panel = document.getElementById('settingsPanel');\n        panel.classList.remove('open');\n    }\n    \n    toggleShareButton() {\n        const channelValue = document.getElementById('channelName').value;\n        const shareBtn = document.getElementById('shareChannel');\n        shareBtn.style.display = channelValue.trim() ? 'block' : 'none';\n    }\n    \n    toggleSendButton() {\n        const messageInput = document.getElementById('messageInput');\n        const sendBtn = document.getElementById('sendBtn');\n        const hasText = messageInput.value.trim().length > 0;\n        const hasImage = document.getElementById('imagePreview').style.display === 'block';\n        \n        sendBtn.disabled = !hasText && !hasImage;\n    }\n    \n    sendMessage() {\n        const messageInput = document.getElementById('messageInput');\n        const message = messageInput.value.trim();\n        \n        if (!message && !this.selectedImageData) {\n            return;\n        }\n        \n        if (!this.userSettings.latitude || !this.userSettings.longitude) {\n            this.showNotification('Location required to send messages', 'error');\n            return;\n        }\n        \n        const messageData = {\n            message: message,\n            image: this.selectedImageData || null\n        };\n        \n        this.socket.emit('sendMessage', messageData);\n        \n        // Clear input\n        messageInput.value = '';\n        messageInput.style.height = 'auto';\n        this.removeSelectedImage();\n        this.toggleSendButton();\n    }\n    \n    handleImageSelection(event) {\n        const file = event.target.files[0];\n        if (!file) return;\n        \n        // Check file size (max 5MB)\n        if (file.size > 5 * 1024 * 1024) {\n            this.showNotification('Image too large. Maximum size is 5MB.', 'error');\n            return;\n        }\n        \n        // Check file type\n        if (!file.type.startsWith('image/')) {\n            this.showNotification('Please select an image file.', 'error');\n            return;\n        }\n        \n        const reader = new FileReader();\n        reader.onload = (e) => {\n            this.selectedImageData = e.target.result;\n            \n            // Show preview\n            const preview = document.getElementById('imagePreview');\n            const img = document.getElementById('previewImg');\n            img.src = this.selectedImageData;\n            preview.style.display = 'block';\n            \n            this.toggleSendButton();\n        };\n        \n        reader.readAsDataURL(file);\n    }\n    \n    removeSelectedImage() {\n        this.selectedImageData = null;\n        document.getElementById('imagePreview').style.display = 'none';\n        document.getElementById('imageInput').value = '';\n        this.toggleSendButton();\n    }\n    \n    displayPosts(posts) {\n        const container = document.getElementById('messagesContainer');\n        \n        // Remove welcome message if it exists\n        const welcomeMsg = container.querySelector('.welcome-message');\n        if (welcomeMsg) {\n            welcomeMsg.remove();\n        }\n        \n        // Clear existing messages\n        container.innerHTML = '';\n        \n        // Add all posts\n        posts.forEach(post => {\n            this.addPostElement(post, false);\n        });\n        \n        this.scrollToBottom();\n    }\n    \n    addNewPost(post) {\n        const container = document.getElementById('messagesContainer');\n        \n        // Remove welcome message if it exists\n        const welcomeMsg = container.querySelector('.welcome-message');\n        if (welcomeMsg) {\n            welcomeMsg.remove();\n        }\n        \n        this.addPostElement(post, true);\n        this.scrollToBottom();\n    }\n    \n    addPostElement(post, animate = false) {\n        const container = document.getElementById('messagesContainer');\n        \n        const messageEl = document.createElement('div');\n        messageEl.className = 'message';\n        if (animate) {\n            messageEl.style.animation = 'messageSlideIn 0.3s ease-out';\n        }\n        \n        const timeAgo = this.getTimeAgo(new Date(post.timestamp));\n        \n        let imageHtml = '';\n        if (post.image) {\n            imageHtml = `\n                <div class=\"message-image\">\n                    <img src=\"${post.image}\" alt=\"Shared image\" loading=\"lazy\">\n                </div>\n            `;\n        }\n        \n        let channelInfo = '';\n        if (post.channel) {\n            channelInfo = `<span>📻 ${post.channel}</span>`;\n        }\n        \n        messageEl.innerHTML = `\n            <div class=\"message-header\">\n                <span class=\"message-author\">${this.escapeHtml(post.displayName)}</span>\n                <span class=\"message-time\">${timeAgo}</span>\n            </div>\n            <div class=\"message-content\">${this.escapeHtml(post.message)}</div>\n            ${imageHtml}\n            <div class=\"message-meta\">\n                ${channelInfo}\n                <span>📍 Nearby</span>\n            </div>\n        `;\n        \n        container.appendChild(messageEl);\n    }\n    \n    showChannelShareModal() {\n        const channelName = this.userSettings.channel;\n        if (!channelName) return;\n        \n        // Generate QR code\n        const baseUrl = window.location.origin;\n        const shareUrl = `${baseUrl}/?channel=${encodeURIComponent(channelName)}`;\n        \n        // Clear previous QR code\n        const qrContainer = document.getElementById('qrCode');\n        qrContainer.innerHTML = '';\n        \n        // Generate new QR code\n        QRCode.toCanvas(qrContainer, shareUrl, {\n            width: 200,\n            margin: 2,\n            color: {\n                dark: '#333',\n                light: '#fff'\n            }\n        }, (error) => {\n            if (error) {\n                console.error('QR Code generation error:', error);\n                qrContainer.innerHTML = '<p>Failed to generate QR code</p>';\n            }\n        });\n        \n        // Set share URL\n        document.getElementById('shareUrl').value = shareUrl;\n        \n        // Show modal\n        document.getElementById('shareModal').style.display = 'flex';\n    }\n    \n    hideChannelShareModal() {\n        document.getElementById('shareModal').style.display = 'none';\n    }\n    \n    copyShareUrl() {\n        const urlInput = document.getElementById('shareUrl');\n        urlInput.select();\n        urlInput.setSelectionRange(0, 99999); // For mobile devices\n        \n        navigator.clipboard.writeText(urlInput.value).then(() => {\n            this.showNotification('Link copied!', 'success');\n        }).catch(() => {\n            // Fallback for older browsers\n            document.execCommand('copy');\n            this.showNotification('Link copied!', 'success');\n        });\n    }\n    \n    scrollToBottom() {\n        const container = document.getElementById('messagesContainer').parentElement;\n        container.scrollTop = container.scrollHeight;\n    }\n    \n    getTimeAgo(date) {\n        const now = new Date();\n        const diffMs = now - date;\n        const diffMins = Math.floor(diffMs / 60000);\n        \n        if (diffMins < 1) return 'Just now';\n        if (diffMins < 60) return `${diffMins}m ago`;\n        \n        const diffHours = Math.floor(diffMins / 60);\n        if (diffHours < 24) return `${diffHours}h ago`;\n        \n        const diffDays = Math.floor(diffHours / 24);\n        if (diffDays < 7) return `${diffDays}d ago`;\n        \n        return date.toLocaleDateString();\n    }\n    \n    escapeHtml(text) {\n        const div = document.createElement('div');\n        div.textContent = text;\n        return div.innerHTML;\n    }\n    \n    showNotification(message, type = 'info') {\n        // Create notification element\n        const notification = document.createElement('div');\n        notification.className = `notification notification-${type}`;\n        notification.textContent = message;\n        \n        // Add styles\n        Object.assign(notification.style, {\n            position: 'fixed',\n            top: '20px',\n            right: '20px',\n            padding: '12px 20px',\n            borderRadius: '8px',\n            color: 'white',\n            fontWeight: '500',\n            zIndex: '10000',\n            maxWidth: '300px',\n            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',\n            transform: 'translateX(100%)',\n            transition: 'transform 0.3s ease'\n        });\n        \n        // Set color based on type\n        switch (type) {\n            case 'success':\n                notification.style.backgroundColor = '#4CAF50';\n                break;\n            case 'error':\n                notification.style.backgroundColor = '#F44336';\n                break;\n            default:\n                notification.style.backgroundColor = '#2196F3';\n        }\n        \n        document.body.appendChild(notification);\n        \n        // Animate in\n        setTimeout(() => {\n            notification.style.transform = 'translateX(0)';\n        }, 10);\n        \n        // Remove after delay\n        setTimeout(() => {\n            notification.style.transform = 'translateX(100%)';\n            setTimeout(() => {\n                if (notification.parentElement) {\n                    notification.parentElement.removeChild(notification);\n                }\n            }, 300);\n        }, 3000);\n    }\n}\n\n// Initialize app when DOM is ready\nif (document.readyState === 'loading') {\n    document.addEventListener('DOMContentLoaded', () => {\n        new GroupdeedoApp();\n    });\n} else {\n    new GroupdeedoApp();\n}
