@@ -20,6 +20,7 @@ function uuidv4() {
 const Database = require('./models/database');
 const { calculateDistance, isWithinRadius } = require('./utils/location');
 const CleanupManager = require('./scripts/cleanup');
+const AdminAuth = require('./middleware/adminAuth');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +36,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Initialize database
 const db = new Database();
+
+// Initialize admin authentication
+const adminAuth = new AdminAuth();
 
 // Initialize cleanup manager (optional built-in scheduling)
 const ENABLE_AUTO_CLEANUP = process.env.ENABLE_AUTO_CLEANUP === 'true';
@@ -71,6 +75,10 @@ if (ENABLE_AUTO_CLEANUP) {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parser for admin sessions
+app.use(require('cookie-parser')());
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -153,6 +161,17 @@ io.on('connection', (socket) => {
             
             // Broadcast to relevant users
             broadcastToRelevantUsers(post);
+            
+            // Notify admin panel of new message (if admin is connected)
+            notifyAdminPanel('newMessage', {
+                id: post.id,
+                displayName: post.displayName,
+                channel: post.channel,
+                latitude: post.latitude,
+                longitude: post.longitude,
+                timestamp: post.timestamp,
+                hasImage: !!post.image
+            });
             
         } catch (error) {
             console.error('Error sending message:', error);
@@ -256,6 +275,16 @@ function broadcastToRelevantUsers(post) {
     console.log(`📊 Post broadcast complete: ${matchingUsers} users received the message`);
 }
 
+// Function to notify admin panel of events
+function notifyAdminPanel(event, data) {
+    // Send to all connected admin sockets (if any)
+    io.emit('adminNotification', {
+        event,
+        data,
+        timestamp: new Date().toISOString()
+    });
+}
+
 // API Routes
 app.get('/api/health', (req, res) => {
     res.json({
@@ -293,6 +322,116 @@ app.post('/api/cleanup/run', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'Cleanup failed', message: error.message });
     }
+});
+
+// Admin Panel Routes
+// Admin login route
+app.post('/api/admin/login', (req, res) => {
+    const { password } = req.body;
+    
+    if (!password) {
+        return res.status(400).json({ error: 'Password required' });
+    }
+    
+    if (adminAuth.verifyPassword(password)) {
+        const token = adminAuth.createSession();
+        console.log('🔐 Admin login successful');
+        res.json({ success: true, token });
+    } else {
+        console.log('🚨 Failed admin login attempt');
+        res.status(401).json({ error: 'Invalid password' });
+    }
+});
+
+// Admin logout route
+app.post('/api/admin/logout', (req, res) => {
+    const token = req.cookies?.adminSession || req.headers['x-admin-token'];
+    if (token && adminAuth.sessionStore.has(token)) {
+        adminAuth.sessionStore.delete(token);
+        console.log('🔐 Admin logout successful');
+    }
+    res.json({ success: true });
+});
+
+// Admin middleware for protected routes
+const requireAdminAuth = (req, res, next) => {
+    adminAuth.requireAuth(req, res, next);
+};
+
+// Admin dashboard routes
+app.get('/proadmin', requireAdminAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin', 'dashboard.html'));
+});
+
+app.get('/proadmin/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin', 'login.html'));
+});
+
+// Admin API routes
+app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
+    try {
+        const stats = await db.getAdminStats();
+        const sessionInfo = adminAuth.getSessionInfo();
+        
+        res.json({
+            ...stats,
+            adminSessions: sessionInfo
+        });
+    } catch (error) {
+        console.error('Error fetching admin stats:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
+
+app.get('/api/admin/posts', requireAdminAuth, async (req, res) => {
+    try {
+        const { filter = 'day', limit = 100 } = req.query;
+        const posts = await db.getPostsWithTimeFilter(filter, parseInt(limit, 10));
+        res.json(posts);
+    } catch (error) {
+        console.error('Error fetching admin posts:', error);
+        res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+});
+
+app.delete('/api/admin/messages/:messageId', requireAdminAuth, async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const result = await db.deletePostById(messageId);
+        
+        if (result.deleted) {
+            console.log(`🗑️ Admin deleted message: ${messageId}`);
+            res.json({ deleted: true, message: 'Message deleted successfully' });
+        } else {
+            res.status(404).json({ error: 'Message not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        res.status(500).json({ error: 'Failed to delete message' });
+    }
+});
+
+app.get('/api/admin/system', requireAdminAuth, (req, res) => {
+    res.json({
+        server: {
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            nodeVersion: process.version,
+            platform: process.platform
+        },
+        application: {
+            activeUsers: activeUsers.size,
+            autoCleanup: {
+                enabled: ENABLE_AUTO_CLEANUP,
+                intervalHours: CLEANUP_INTERVAL_HOURS,
+                daysOld: CLEANUP_DAYS_OLD
+            }
+        },
+        database: {
+            path: db.dbPath,
+            connected: !!db.db
+        }
+    });
 });
 
 // Get channel info for sharing

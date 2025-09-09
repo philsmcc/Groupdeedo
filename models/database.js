@@ -345,6 +345,152 @@ class Database {
         });
     }
     
+    // Admin panel methods
+    getPostsWithTimeFilter(timeFilter = 'all', limit = 100) {
+        return new Promise((resolve, reject) => {
+            let whereClause = '';
+            
+            switch (timeFilter) {
+                case 'hour':
+                    whereClause = "WHERE created_at >= datetime('now', '-1 hour')";
+                    break;
+                case 'day':
+                    whereClause = "WHERE created_at >= datetime('now', '-1 day')";
+                    break;
+                case 'week':
+                    whereClause = "WHERE created_at >= datetime('now', '-7 days')";
+                    break;
+                case 'month':
+                    whereClause = "WHERE created_at >= datetime('now', '-30 days')";
+                    break;
+                default:
+                    whereClause = '';
+            }
+            
+            const query = `
+                SELECT * FROM posts 
+                ${whereClause}
+                ORDER BY created_at DESC 
+                LIMIT ?
+            `;
+            
+            this.db.all(query, [limit], (err, rows) => {
+                if (err) {
+                    console.error('Error fetching posts with time filter:', err);
+                    reject(err);
+                } else {
+                    const posts = rows.map(row => ({
+                        id: row.id,
+                        sessionId: row.session_id,
+                        displayName: row.display_name,
+                        message: row.message,
+                        image: row.image,
+                        latitude: row.latitude,
+                        longitude: row.longitude,
+                        channel: row.channel,
+                        timestamp: row.timestamp,
+                        createdAt: row.created_at
+                    }));
+                    
+                    resolve(posts);
+                }
+            });
+        });
+    }
+    
+    deletePostById(postId) {
+        return new Promise((resolve, reject) => {
+            const query = 'DELETE FROM posts WHERE id = ?';
+            
+            this.db.run(query, [postId], function(err) {
+                if (err) {
+                    console.error('Error deleting post:', err);
+                    reject(err);
+                } else {
+                    console.log(`Admin deleted post: ${postId}`);
+                    resolve({ deleted: this.changes > 0, changes: this.changes });
+                }
+            });
+        });
+    }
+    
+    getAdminStats() {
+        return new Promise((resolve, reject) => {
+            const queries = {
+                totalPosts: 'SELECT COUNT(*) as count FROM posts',
+                postsLastHour: "SELECT COUNT(*) as count FROM posts WHERE created_at >= datetime('now', '-1 hour')",
+                postsLastDay: "SELECT COUNT(*) as count FROM posts WHERE created_at >= datetime('now', '-1 day')",
+                postsLastWeek: "SELECT COUNT(*) as count FROM posts WHERE created_at >= datetime('now', '-7 days')",
+                postsLastMonth: "SELECT COUNT(*) as count FROM posts WHERE created_at >= datetime('now', '-30 days')",
+                uniqueChannels: 'SELECT COUNT(DISTINCT channel) as count FROM posts',
+                uniqueSessions: 'SELECT COUNT(DISTINCT session_id) as count FROM posts',
+                postsWithImages: 'SELECT COUNT(*) as count FROM posts WHERE image IS NOT NULL',
+                avgPostsPerDay: `
+                    SELECT ROUND(COUNT(*) / CAST((julianday('now') - julianday(MIN(created_at))) AS REAL), 2) as avg 
+                    FROM posts 
+                    WHERE created_at >= datetime('now', '-30 days')
+                `,
+                topChannels: `
+                    SELECT channel, COUNT(*) as count 
+                    FROM posts 
+                    WHERE channel != '' 
+                    GROUP BY channel 
+                    ORDER BY count DESC 
+                    LIMIT 10
+                `,
+                recentActivity: `
+                    SELECT 
+                        DATE(created_at) as date,
+                        COUNT(*) as posts,
+                        COUNT(DISTINCT session_id) as unique_users,
+                        COUNT(DISTINCT channel) as active_channels
+                    FROM posts 
+                    WHERE created_at >= datetime('now', '-7 days')
+                    GROUP BY DATE(created_at)
+                    ORDER BY date DESC
+                `
+            };
+            
+            const results = {};
+            let completed = 0;
+            const total = Object.keys(queries).length;
+            
+            for (const [key, query] of Object.entries(queries)) {
+                if (key === 'topChannels' || key === 'recentActivity') {
+                    // Handle queries that return multiple rows
+                    this.db.all(query, (err, rows) => {
+                        if (err) {
+                            console.error(`Error in admin stats query ${key}:`, err);
+                            results[key] = [];
+                        } else {
+                            results[key] = rows;
+                        }
+                        
+                        completed++;
+                        if (completed === total) {
+                            resolve(results);
+                        }
+                    });
+                } else {
+                    // Handle queries that return single row
+                    this.db.get(query, (err, row) => {
+                        if (err) {
+                            console.error(`Error in admin stats query ${key}:`, err);
+                            results[key] = 0;
+                        } else {
+                            results[key] = row[Object.keys(row)[0]];
+                        }
+                        
+                        completed++;
+                        if (completed === total) {
+                            resolve(results);
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
     close() {
         return new Promise((resolve) => {
             if (this.db) {
