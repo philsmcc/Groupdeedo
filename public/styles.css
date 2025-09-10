@@ -7,15 +7,19 @@
 }
 
 :root {
-    --primary-color: #4A90E2;
-    --primary-dark: #357ABD;
-    --secondary-color: #F39C12;
-    --background-color: #F8F9FA;
-    --surface-color: #FFFFFF;
-    --text-primary: #333333;
-    --text-secondary: #666666;
-    --text-light: #999999;
-    --border-color: #E1E8ED;
+    /* Groupdeedo Brand Colors */
+    --primary-color: #FF5700;
+    --primary-dark: #FF2200;
+    --secondary-color: #FF4500;
+    --brand-gradient: linear-gradient(135deg, #FF5700 0%, #FF2200 100%);
+    /* Dark theme matching logo background */
+    --background-color: #2a2d35;
+    --surface-color: #3a3d45;
+    --surface-light: #4a4d55;
+    --text-primary: #FFFFFF;
+    --text-secondary: #B0B3B8;
+    --text-light: #8A8D93;
+    --border-color: #5a5d65;
     --shadow-light: 0 2px 4px rgba(0,0,0,0.1);
     --shadow-medium: 0 4px 8px rgba(0,0,0,0.15);
     --border-radius: 12px;
@@ -67,7 +71,7 @@ body {
 
 /* Header */
 .app-header {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    background: var(--brand-gradient);
     color: white;
     padding: var(--spacing-md);
     box-shadow: var(--shadow-medium);
@@ -84,9 +88,17 @@ body {
 }
 
 .app-title {
+    display: flex;
+    align-items: center;
     font-size: var(--font-size-xl);
     font-weight: 600;
     margin: 0;
+}
+
+.header-logo {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
 }
 
 .settings-btn {
@@ -201,6 +213,8 @@ body {
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius-small);
     font-size: var(--font-size-md);
+    background-color: var(--surface-light);
+    color: var(--text-primary);
     transition: border-color 0.2s ease;
 }
 
@@ -440,6 +454,8 @@ body {
     border-radius: var(--border-radius);
     font-size: var(--font-size-md);
     font-family: inherit;
+    background-color: var(--surface-light);
+    color: var(--text-primary);
     resize: none;
     transition: border-color 0.2s ease;
 }
