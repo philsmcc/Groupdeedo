@@ -169,6 +169,16 @@ class GroupdeedoApp {
             this.toggleShareButton();
         });
         
+        // Clear privacy key button
+        document.getElementById('clearChannel').addEventListener('click', () => {
+            document.getElementById('channelName').value = '';
+            this.userSettings.channel = '';
+            this.saveUserSettings();
+            throttledUpdateSettings();
+            this.toggleShareButton();
+            this.showNotification('Privacy key cleared', 'success');
+        });
+        
         // Message sending
         document.getElementById('messageInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

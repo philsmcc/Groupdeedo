@@ -555,7 +555,7 @@ app.get('/api/vote/:postId/user/:sessionId', async (req, res) => {
     }
 });
 
-// Get channel info for sharing
+// Get privacy key info for sharing (channel endpoint for backwards compatibility)
 app.get('/api/channel/:channelName', (req, res) => {
     const channelName = req.params.channelName;
     const baseUrl = `${req.protocol}://${req.get('host')}`;

@@ -226,6 +226,47 @@ body {
     border-color: var(--primary-color);
 }
 
+/* Privacy Key Input Group */
+.channel-input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.channel-input-group input {
+    flex: 1;
+}
+
+.btn-small {
+    padding: 8px 12px;
+    font-size: var(--font-size-sm);
+    min-width: auto;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-secondary {
+    background-color: var(--surface-light);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.channel-help {
+    margin-top: var(--spacing-sm);
+}
+
+.channel-help small {
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
 /* Slider */
 .slider {
     width: 100%;

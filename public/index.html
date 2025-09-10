@@ -90,13 +90,14 @@
                 </div>
                 
                 <div class="setting-group">
-                    <label for="channelName">Channel (optional):</label>
+                    <label for="channelName">Privacy Key (optional):</label>
                     <div class="channel-input-group">
                         <input type="text" id="channelName" placeholder="Leave empty for public chat" maxlength="50">
+                        <button id="clearChannel" class="btn btn-small btn-secondary" title="Clear Privacy Key">✕</button>
                         <button id="shareChannel" class="btn btn-small" style="display: none;">Share</button>
                     </div>
                     <div class="channel-help">
-                        <small>Private channels are for sharing with friends. Public channel shows everyone nearby.</small>
+                        <small>Join others by entering an existing privacy key, or create a new one. An obscure privacy key for more privacy or a common one like "Baseball" to join others talking about baseball.</small>
                     </div>
                 </div>
                 
@@ -160,11 +161,11 @@
         </footer>
     </div>
     
-    <!-- Channel Share Modal -->
+    <!-- Privacy Key Share Modal -->
     <div id="shareModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Share Channel</h3>
+                <h3>Share Privacy Key</h3>
                 <button id="closeShareModal" class="close-btn">✕</button>
             </div>
             <div class="modal-body">
@@ -177,7 +178,7 @@
                             <input type="text" id="shareUrl" readonly>
                             <button id="copyUrl" class="btn btn-small">Copy</button>
                         </div>
-                        <p><small>Share this QR code or link with friends to join your private channel.</small></p>
+                        <p><small>Share this QR code or link with friends to join your private chat using this privacy key.</small></p>
                     </div>
                 </div>
             </div>
