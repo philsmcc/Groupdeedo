@@ -71,7 +71,7 @@ body {
 
 /* Header */
 .app-header {
-    background: var(--surface-color);
+    background: #000000;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
     padding: var(--spacing-md);
@@ -97,15 +97,15 @@ body {
 }
 
 .header-logo {
-    height: 32px;
+    height: 40px;
     width: auto;
     object-fit: contain;
 }
 
 .settings-btn {
-    background: var(--background-color);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
     padding: var(--spacing-sm);
     border-radius: var(--border-radius-small);
     cursor: pointer;
@@ -113,8 +113,8 @@ body {
 }
 
 .settings-btn:hover {
-    background: var(--border-color);
-    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
 }
 
 /* Connection Status */
@@ -124,7 +124,7 @@ body {
     gap: var(--spacing-sm);
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-md);
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.7);
     opacity: 0.9;
 }
 
