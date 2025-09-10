@@ -327,6 +327,11 @@ class GroupdeedoApp {
             console.error('Socket error:', error);
             this.showNotification(error, 'error');
         });
+        
+        this.socket.on('messageDeleted', (data) => {
+            console.log('Message deleted by admin:', data.messageId);
+            this.removeMessage(data.messageId);
+        });
     }
     
     updateConnectionStatus(text, className) {
@@ -659,6 +664,7 @@ class GroupdeedoApp {
         
         const messageEl = document.createElement('div');
         messageEl.className = 'message';
+        messageEl.setAttribute('data-message-id', post.id);
         if (animate) {
             messageEl.style.animation = 'messageSlideIn 0.3s ease-out';
         }
@@ -693,6 +699,44 @@ class GroupdeedoApp {
         `;
         
         container.appendChild(messageEl);
+    }
+    
+    removeMessage(messageId) {
+        console.log(`Removing message: ${messageId}`);
+        const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageEl) {
+            // Add fade-out animation before removing
+            messageEl.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+            messageEl.style.opacity = '0';
+            messageEl.style.transform = 'translateX(-20px)';
+            
+            // Remove the element after animation
+            setTimeout(() => {
+                messageEl.remove();
+                console.log(`✅ Message ${messageId} removed from chat`);
+                
+                // Check if chat is empty and show welcome message if needed
+                const container = document.getElementById('messagesContainer');
+                const remainingMessages = container.querySelectorAll('.message');
+                if (remainingMessages.length === 0) {
+                    this.showWelcomeMessage();
+                }
+            }, 300);
+        } else {
+            console.warn(`Message ${messageId} not found in DOM`);
+        }
+    }
+    
+    showWelcomeMessage() {
+        const container = document.getElementById('messagesContainer');
+        const welcomeMsg = document.createElement('div');
+        welcomeMsg.className = 'welcome-message';
+        welcomeMsg.innerHTML = `
+            <p>🎉 Welcome to Groupdeedo!</p>
+            <p>You'll see messages from people near you.</p>
+            <p>Tap the gear icon ⚙️ to customize your settings.</p>
+        `;
+        container.appendChild(welcomeMsg);
     }
     
     showChannelShareModal() {

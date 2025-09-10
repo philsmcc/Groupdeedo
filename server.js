@@ -401,6 +401,14 @@ app.delete('/api/admin/messages/:messageId', requireAdminAuth, async (req, res) 
         
         if (result.deleted) {
             console.log(`🗑️ Admin deleted message: ${messageId}`);
+            
+            // Broadcast message deletion to all connected users
+            io.emit('messageDeleted', { messageId });
+            console.log(`📡 Broadcasted deletion of message ${messageId} to all users`);
+            
+            // Notify admin panel
+            notifyAdminPanel('messageDeleted', { messageId, deletedBy: 'admin' });
+            
             res.json({ deleted: true, message: 'Message deleted successfully' });
         } else {
             res.status(404).json({ error: 'Message not found' });
