@@ -4,32 +4,54 @@
     "description": "Anonymous location-based group chat",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#F8F9FA",
-    "theme_color": "#4A90E2",
+    "background_color": "#2a2d35",
+    "theme_color": "#FF5700",
     "orientation": "portrait-primary",
     "categories": ["social", "communication"],
     "lang": "en",
+    "scope": "/",
+    "id": "/",
     "icons": [
         {
-            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%234A90E2' rx='64'/><text x='256' y='350' font-size='280' text-anchor='middle' fill='white'>💬</text></svg>",
-            "sizes": "512x512",
-            "type": "image/svg+xml",
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
             "purpose": "any maskable"
         },
         {
-            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%234A90E2' rx='24'/><text x='96' y='130' font-size='100' text-anchor='middle' fill='white'>💬</text></svg>",
-            "sizes": "192x192",
-            "type": "image/svg+xml"
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "512x512",
+            "type": "image/png"
         },
         {
-            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 144 144'><rect width='144' height='144' fill='%234A90E2' rx='18'/><text x='72' y='98' font-size='76' text-anchor='middle' fill='white'>💬</text></svg>",
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/groupdeedo-app-icon.png",
             "sizes": "144x144",
-            "type": "image/svg+xml"
+            "type": "image/png"
+        },
+        {
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "96x96",
+            "type": "image/png"
+        },
+        {
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "72x72",
+            "type": "image/png"
+        },
+        {
+            "src": "/groupdeedo-app-icon.png",
+            "sizes": "48x48",
+            "type": "image/png"
         }
     ],
     "screenshots": [
         {
-            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect width='390' height='844' fill='%23F8F9FA'/><rect width='390' height='80' fill='%234A90E2'/><text x='20' y='50' font-size='18' fill='white' font-family='system-ui'>💬 Groupdeedo</text><rect x='20' y='120' width='350' height='600' fill='white' rx='12' stroke='%23E1E8ED'/></svg>",
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect width='390' height='844' fill='%232a2d35'/><rect width='390' height='80' fill='%23000000'/><rect x='20' y='120' width='350' height='600' fill='%233a3d45' rx='12'/></svg>",
             "sizes": "390x844",
             "type": "image/svg+xml",
             "form_factor": "narrow"
