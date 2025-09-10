@@ -50,7 +50,7 @@
         <header class="app-header">
             <div class="header-content">
                 <h1 class="app-title">
-                    <img src="/groupdeedo-app-icon.png" alt="Groupdeedo" class="header-logo">
+                    <img src="/groupdeedo-logo.png" alt="Groupdeedo" class="header-logo">
                 </h1>
                 <button id="settingsBtn" class="settings-btn" title="Settings">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -104,6 +104,12 @@
                     <div class="location-status">
                         <span id="locationStatus">📍 Getting location...</span>
                     </div>
+                </div>
+                
+                <div class="setting-group">
+                    <button id="installAppBtn" class="btn btn-primary" style="display: none; width: 100%;">
+                        📱 Install App
+                    </button>
                 </div>
             </div>
         </div>
@@ -192,6 +198,8 @@
     
     <!-- PWA Service Worker Registration -->
     <script>
+        let deferredPrompt;
+        
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js')
@@ -202,6 +210,49 @@
                     });
             });
         }
+        
+        // PWA Install Prompt Handling
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            // Show the install button in settings
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) {
+                installBtn.style.display = 'block';
+            }
+        });
+        
+        // Handle install button click
+        document.addEventListener('DOMContentLoaded', function() {
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        // Show the install prompt
+                        deferredPrompt.prompt();
+                        // Wait for the user to respond to the prompt
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log(`User response to the install prompt: ${outcome}`);
+                        // Clear the deferredPrompt
+                        deferredPrompt = null;
+                        // Hide the install button
+                        installBtn.style.display = 'none';
+                    }
+                });
+            }
+        });
+        
+        // Hide install button if app is already installed
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed');
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) {
+                installBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
     </script>
 </body>
 </html>
