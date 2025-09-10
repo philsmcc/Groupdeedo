@@ -267,6 +267,30 @@ body {
     line-height: 1.4;
 }
 
+/* Settings OK Button */
+.settings-ok-button {
+    margin-top: var(--spacing-md);
+    text-align: center;
+}
+
+.settings-ok {
+    min-width: 120px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(255, 87, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.settings-ok:hover {
+    background: var(--primary-dark);
+    box-shadow: 0 4px 12px rgba(255, 87, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.settings-ok:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(255, 87, 0, 0.2);
+}
+
 /* Slider */
 .slider {
     width: 100%;

@@ -179,6 +179,12 @@ class GroupdeedoApp {
             this.showNotification('Privacy key cleared', 'success');
         });
         
+        // Settings OK button
+        document.getElementById('settingsOk').addEventListener('click', () => {
+            this.closeSettings();
+            this.showNotification('Settings saved successfully', 'success');
+        });
+        
         // Message sending
         document.getElementById('messageInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
