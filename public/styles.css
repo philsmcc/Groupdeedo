@@ -71,8 +71,9 @@ body {
 
 /* Header */
 .app-header {
-    background: var(--brand-gradient);
-    color: white;
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
     padding: var(--spacing-md);
     box-shadow: var(--shadow-medium);
     position: relative;
@@ -102,17 +103,18 @@ body {
 }
 
 .settings-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     padding: var(--spacing-sm);
     border-radius: var(--border-radius-small);
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .settings-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--border-color);
+    color: var(--text-primary);
 }
 
 /* Connection Status */
@@ -122,6 +124,7 @@ body {
     gap: var(--spacing-sm);
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-md);
+    color: var(--text-secondary);
     opacity: 0.9;
 }
 
