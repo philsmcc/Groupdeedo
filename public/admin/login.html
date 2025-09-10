@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Groupdeedo Admin Login</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" href="/groupdeedo-icon.png">
     <style>
         * {
             margin: 0;
@@ -14,7 +14,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FF5700 0%, #FF2200 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -34,10 +34,20 @@
         }
 
         .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             font-size: 2.5rem;
             color: #333;
             margin-bottom: 10px;
             font-weight: bold;
+        }
+
+        .login-logo {
+            height: 48px;
+            width: 48px;
+            object-fit: contain;
         }
 
         .subtitle {
@@ -70,13 +80,13 @@
 
         input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #FF5700;
+            box-shadow: 0 0 0 3px rgba(255, 87, 0, 0.1);
         }
 
         .login-btn {
             width: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FF5700 0%, #FF2200 100%);
             color: white;
             padding: 14px 20px;
             border: none;
@@ -128,7 +138,10 @@
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">🛡️ Groupdeedo</div>
+        <div class="logo">
+            <img src="/groupdeedo-icon.png" alt="Groupdeedo" class="login-logo">
+            Groupdeedo
+        </div>
         <div class="subtitle">Admin Panel Access</div>
         
         <form id="loginForm">

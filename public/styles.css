@@ -7,9 +7,11 @@
 }
 
 :root {
-    --primary-color: #4A90E2;
-    --primary-dark: #357ABD;
-    --secondary-color: #F39C12;
+    /* Groupdeedo Brand Colors */
+    --primary-color: #FF5700;
+    --primary-dark: #FF2200;
+    --secondary-color: #FF4500;
+    --brand-gradient: linear-gradient(135deg, #FF5700 0%, #FF2200 100%);
     --background-color: #F8F9FA;
     --surface-color: #FFFFFF;
     --text-primary: #333333;
@@ -67,7 +69,7 @@ body {
 
 /* Header */
 .app-header {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    background: var(--brand-gradient);
     color: white;
     padding: var(--spacing-md);
     box-shadow: var(--shadow-medium);
@@ -84,9 +86,17 @@ body {
 }
 
 .app-title {
+    display: flex;
+    align-items: center;
     font-size: var(--font-size-xl);
     font-weight: 600;
     margin: 0;
+}
+
+.header-logo {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
 }
 
 .settings-btn {

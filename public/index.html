@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Groupdeedo - Local Chat</title>
     <meta name="description" content="Anonymous location-based group chat">
-    <meta name="theme-color" content="#4A90E2">
+    <meta name="theme-color" content="#FF5700">
     
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="/manifest.json">
@@ -14,7 +14,8 @@
     <meta name="apple-mobile-web-app-title" content="Groupdeedo">
     
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
+    <link rel="icon" type="image/png" href="/groupdeedo-icon.png">
+    <link rel="apple-touch-icon" href="/groupdeedo-icon.png">
     
     <!-- Styles -->
     <link rel="stylesheet" href="/styles.css">
@@ -48,7 +49,9 @@
         <!-- Header -->
         <header class="app-header">
             <div class="header-content">
-                <h1 class="app-title">💬 Groupdeedo</h1>
+                <div class="app-title">
+                    <img src="/groupdeedo-logo.png" alt="Groupdeedo" class="header-logo">
+                </div>
                 <button id="settingsBtn" class="settings-btn" title="Settings">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3"></circle>
