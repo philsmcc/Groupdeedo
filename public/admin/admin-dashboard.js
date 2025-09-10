@@ -330,6 +330,9 @@ class AdminDashboard {
                 <div class="message-meta">
                     <span>📍 ${post.latitude.toFixed(4)}, ${post.longitude.toFixed(4)}</span>
                     <span>${new Date(post.createdAt).toLocaleString()}</span>
+                    <span class="vote-stats">
+                        👍 ${post.upvotes || 0} | 👎 ${post.downvotes || 0}
+                    </span>
                 </div>
             </div>
         `).join('');

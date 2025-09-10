@@ -723,3 +723,90 @@ textarea:focus-visible {
     background: var(--primary-color);
     color: white;
 }
+
+/* Message Voting Styles */
+.message-votes {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+}
+
+.vote-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    padding: 6px 12px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 50px;
+    justify-content: center;
+}
+
+.vote-btn:hover:not(:disabled) {
+    background: var(--surface-color);
+    border-color: var(--primary-color);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.vote-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.vote-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.vote-btn.vote-up:hover:not(:disabled) {
+    background: rgba(76, 175, 80, 0.1);
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+.vote-btn.vote-down:hover:not(:disabled) {
+    background: rgba(244, 67, 54, 0.1);
+    border-color: #F44336;
+    color: #F44336;
+}
+
+.vote-count {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+}
+
+/* Animation for vote updates */
+.vote-count {
+    transition: all 0.3s ease;
+}
+
+.vote-count.updated {
+    animation: voteCountPulse 0.3s ease;
+}
+
+@keyframes voteCountPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Mobile optimizations for vote buttons */
+@media (max-width: 480px) {
+    .vote-btn {
+        padding: 8px 10px;
+        min-width: 45px;
+        font-size: 11px;
+    }
+    
+    .message-votes {
+        gap: 6px;
+    }
+}

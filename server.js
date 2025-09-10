@@ -386,7 +386,7 @@ app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
 app.get('/api/admin/posts', requireAdminAuth, async (req, res) => {
     try {
         const { filter = 'day', limit = 100 } = req.query;
-        const posts = await db.getPostsWithTimeFilter(filter, parseInt(limit, 10));
+        const posts = await db.getPostsWithVoteCounts(filter, parseInt(limit, 10));
         res.json(posts);
     } catch (error) {
         console.error('Error fetching admin posts:', error);
@@ -440,6 +440,119 @@ app.get('/api/admin/system', requireAdminAuth, (req, res) => {
             connected: !!db.db
         }
     });
+});
+
+// Voting API Routes
+app.post('/api/vote/:postId', async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { voteType, sessionId } = req.body;
+        
+        // Validate inputs
+        if (!postId || !voteType || !sessionId) {
+            return res.status(400).json({ error: 'Missing required fields: postId, voteType, sessionId' });
+        }
+        
+        if (!['up', 'down'].includes(voteType)) {
+            return res.status(400).json({ error: 'Invalid vote type. Must be "up" or "down"' });
+        }
+        
+        console.log(`🗳️ Vote request: ${sessionId} voting ${voteType} on post ${postId}`);
+        
+        // Add or update vote
+        const voteResult = await db.addVote(postId, sessionId, voteType);
+        
+        // Get updated vote counts
+        const voteCounts = await db.getPostVoteCounts(postId);
+        
+        // Check if post should be auto-deleted due to downvotes
+        if (voteType === 'down') {
+            const autoDeleteCheck = await db.checkPostForAutoDelete(postId);
+            
+            if (autoDeleteCheck.shouldDelete) {
+                console.log(`🗑️ Auto-deleting post ${postId} due to ${autoDeleteCheck.downvoteCount} downvotes`);
+                
+                // Delete the post
+                const deleteResult = await db.deletePostById(postId);
+                
+                if (deleteResult.deleted) {
+                    // Broadcast message deletion to all connected users
+                    io.emit('messageDeleted', { 
+                        messageId: postId, 
+                        reason: 'auto-moderation',
+                        downvoteCount: autoDeleteCheck.downvoteCount 
+                    });
+                    console.log(`📡 Broadcasted auto-deletion of message ${postId} to all users`);
+                    
+                    // Notify admin panel
+                    notifyAdminPanel('messageAutoDeleted', { 
+                        messageId: postId, 
+                        reason: 'auto-moderation',
+                        downvoteCount: autoDeleteCheck.downvoteCount 
+                    });
+                    
+                    return res.json({
+                        success: true,
+                        action: voteResult.action,
+                        voteType: voteType,
+                        voteCounts: voteCounts,
+                        autoDeleted: true,
+                        message: 'Message automatically removed due to community moderation'
+                    });
+                }
+            }
+        }
+        
+        // Broadcast vote update to all users
+        io.emit('voteUpdate', {
+            postId: postId,
+            voteCounts: voteCounts,
+            action: voteResult.action,
+            voteType: voteType
+        });
+        
+        // Notify admin panel of voting activity
+        notifyAdminPanel('voteActivity', {
+            postId: postId,
+            voteType: voteType,
+            action: voteResult.action,
+            voteCounts: voteCounts
+        });
+        
+        res.json({
+            success: true,
+            action: voteResult.action,
+            voteType: voteType,
+            voteCounts: voteCounts,
+            autoDeleted: false
+        });
+        
+    } catch (error) {
+        console.error('Error processing vote:', error);
+        res.status(500).json({ error: 'Failed to process vote' });
+    }
+});
+
+app.get('/api/vote/:postId/counts', async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const voteCounts = await db.getPostVoteCounts(postId);
+        res.json(voteCounts);
+    } catch (error) {
+        console.error('Error fetching vote counts:', error);
+        res.status(500).json({ error: 'Failed to fetch vote counts' });
+    }
+});
+
+app.get('/api/vote/:postId/user/:sessionId', async (req, res) => {
+    try {
+        const { postId, sessionId } = req.params;
+        const userVote = await db.getUserVote(postId, sessionId);
+        res.json({ userVote });
+    } catch (error) {
+        console.error('Error fetching user vote:', error);
+        res.status(500).json({ error: 'Failed to fetch user vote' });
+    }
 });
 
 // Get channel info for sharing

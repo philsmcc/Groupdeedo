@@ -329,8 +329,16 @@ class GroupdeedoApp {
         });
         
         this.socket.on('messageDeleted', (data) => {
-            console.log('Message deleted by admin:', data.messageId);
+            console.log('Message deleted:', data.messageId, data.reason || 'admin');
             this.removeMessage(data.messageId);
+            if (data.reason === 'auto-moderation') {
+                this.showNotification(`Message removed by community moderation (${data.downvoteCount} downvotes)`, 'info');
+            }
+        });
+        
+        this.socket.on('voteUpdate', (data) => {
+            console.log('Vote update received:', data);
+            this.updateVoteDisplay(data.postId, data.voteCounts);
         });
     }
     
@@ -696,9 +704,96 @@ class GroupdeedoApp {
                 ${channelInfo}
                 <span>📍 Nearby</span>
             </div>
+            <div class=\"message-votes\">
+                <button class=\"vote-btn vote-up\" data-post-id=\"${post.id}\" data-vote-type=\"up\">
+                    👍 <span class=\"vote-count upvote-count\">${post.upvotes || 0}</span>
+                </button>
+                <button class=\"vote-btn vote-down\" data-post-id=\"${post.id}\" data-vote-type=\"down\">
+                    👎 <span class=\"vote-count downvote-count\">${post.downvotes || 0}</span>
+                </button>
+            </div>
         `;
         
         container.appendChild(messageEl);
+        
+        // Add vote button event listeners
+        this.setupVoteButtons(messageEl, post.id);
+    }
+    
+    setupVoteButtons(messageElement, postId) {
+        const voteButtons = messageElement.querySelectorAll('.vote-btn');
+        voteButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleVote(postId, button.dataset.voteType, button);
+            });
+        });
+    }
+    
+    async handleVote(postId, voteType, buttonElement) {
+        // Prevent rapid clicking
+        if (buttonElement.disabled) return;
+        buttonElement.disabled = true;
+        
+        try {
+            const response = await fetch(`/api/vote/${postId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    voteType: voteType,
+                    sessionId: this.socket.id // Use socket ID as session ID
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Update vote display
+                this.updateVoteDisplay(postId, result.voteCounts);
+                
+                // Show feedback
+                let message = '';
+                if (result.action === 'added') {
+                    message = `${voteType === 'up' ? '👍' : '👎'} Vote added`;
+                } else if (result.action === 'removed') {
+                    message = `Vote removed`;
+                } else if (result.action === 'updated') {
+                    message = `${voteType === 'up' ? '👍' : '👎'} Vote changed`;
+                }
+                
+                if (result.autoDeleted) {
+                    message = result.message;
+                }
+                
+                this.showNotification(message, result.autoDeleted ? 'info' : 'success');
+                
+            } else {
+                throw new Error(result.error || 'Failed to vote');
+            }
+            
+        } catch (error) {
+            console.error('Error voting:', error);
+            this.showNotification('Failed to vote. Please try again.', 'error');
+        } finally {
+            // Re-enable button after a short delay
+            setTimeout(() => {
+                buttonElement.disabled = false;
+            }, 1000);
+        }
+    }
+    
+    updateVoteDisplay(postId, voteCounts) {
+        const messageElement = document.querySelector(`[data-message-id="${postId}"]`);
+        if (messageElement) {
+            const upvoteCount = messageElement.querySelector('.upvote-count');
+            const downvoteCount = messageElement.querySelector('.downvote-count');
+            
+            if (upvoteCount) upvoteCount.textContent = voteCounts.up || 0;
+            if (downvoteCount) downvoteCount.textContent = voteCounts.down || 0;
+        }
     }
     
     removeMessage(messageId) {
