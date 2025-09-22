@@ -263,7 +263,7 @@ class GroupdeedoApp {
             (position) => {
                 this.userSettings.latitude = position.coords.latitude;
                 this.userSettings.longitude = position.coords.longitude;
-                statusEl.textContent = '📍 Location found';
+                statusEl.textContent = '📍 Location Noted..';
                 this.updateSettings();
                 
                 // Start watching position for updates (throttled to prevent excessive updates)
