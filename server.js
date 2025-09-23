@@ -40,7 +40,7 @@ const db = new Database();
 // Initialize admin authentication
 const adminAuth = new AdminAuth();
 
-// Initialize cleanup manager (optional built-in scheduling)
+// Initialize cleanup manager (optional built-in scheduling )
 const ENABLE_AUTO_CLEANUP = process.env.ENABLE_AUTO_CLEANUP === 'true';
 const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS, 10) || 24;
 const CLEANUP_DAYS_OLD = parseInt(process.env.CLEANUP_DAYS_OLD, 10) || 30;
