@@ -16,7 +16,7 @@ function uuidv4() {
     });
 }
 
-// Import custom modules
+// Import custom modules - Testing custom LoRa trunk.
 const Database = require('./models/database');
 const { calculateDistance, isWithinRadius } = require('./utils/location');
 const CleanupManager = require('./scripts/cleanup');
