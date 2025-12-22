@@ -442,7 +442,7 @@ app.get('/api/admin/system', requireAdminAuth, (req, res) => {
     });
 });
 
-// Voting API Routes
+// Voting API Routes - 3 Thumbs Down not working - dec 22
 app.post('/api/vote/:postId', async (req, res) => {
     try {
         const { postId } = req.params;
