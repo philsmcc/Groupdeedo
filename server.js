@@ -136,22 +136,26 @@ io.on('connection', (socket) => {
     // Handle new message
     socket.on('sendMessage', async (messageData) => {
         const user = activeUsers.get(socket.id);
-        if (!user || !user.latitude || !user.longitude) {
-            socket.emit('error', 'Location required to send messages');
+        if (!user) {
+            socket.emit('error', 'Not connected');
             return;
         }
         
         try {
+            // Determine if this is a global post (no location)
+            const isGlobal = !user.latitude || !user.longitude;
+            
             const post = {
                 id: uuidv4(),
                 sessionId: user.sessionId,
                 displayName: user.displayName,
                 message: messageData.message,
                 image: messageData.image || null,
-                latitude: user.latitude,
-                longitude: user.longitude,
+                latitude: user.latitude || null,
+                longitude: user.longitude || null,
                 channel: normalizeChannel(user.channel),
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                isGlobal: isGlobal
             };
             
             console.log(`📤 User ${user.displayName} (${socket.id}) sending message to channel: [${post.channel}]`);
@@ -209,19 +213,31 @@ function normalizeChannel(channel) {
 // Function to send filtered posts to a specific user
 async function sendFilteredPosts(socket) {
     const user = activeUsers.get(socket.id);
-    if (!user || !user.latitude || !user.longitude) {
+    if (!user) {
         return;
     }
     
     try {
         const allPosts = await db.getRecentPosts(100); // Get last 100 posts
+        const userHasLocation = user.latitude && user.longitude;
+        
         const filteredPosts = allPosts.filter(post => {
             // Channel filter: must match exactly (empty matches empty)
             if (normalizeChannel(post.channel) !== normalizeChannel(user.channel)) {
                 return false;
             }
             
-            // Distance filter
+            // If user has no location (global mode), show all posts in the channel
+            if (!userHasLocation) {
+                return true;
+            }
+            
+            // If post is global (no location), show to everyone in the channel
+            if (post.isGlobal || !post.latitude || !post.longitude) {
+                return true;
+            }
+            
+            // Distance filter for location-based posts
             const distance = calculateDistance(
                 user.latitude, user.longitude,
                 post.latitude, post.longitude
@@ -239,12 +255,10 @@ async function sendFilteredPosts(socket) {
 
 // Function to broadcast new post to relevant users
 function broadcastToRelevantUsers(post) {
-    console.log(`📡 Broadcasting post from channel: "${post.channel}" to ${activeUsers.size} users`);
+    console.log(`📡 Broadcasting ${post.isGlobal ? 'GLOBAL' : 'LOCAL'} post from channel: "${post.channel}" to ${activeUsers.size} users`);
     let matchingUsers = 0;
     
     for (const [socketId, user] of activeUsers.entries()) {
-        if (!user.latitude || !user.longitude) continue;
-        
         console.log(`   👤 User ${user.displayName} (${socketId}) is in channel: [${user.channel}]`);
         
         // Channel filter
@@ -255,7 +269,25 @@ function broadcastToRelevantUsers(post) {
             continue;
         }
         
-        // Distance filter
+        const userHasLocation = user.latitude && user.longitude;
+        
+        // If user has no location (global mode), they see all posts in their channel
+        if (!userHasLocation) {
+            console.log(`   ✅ Sending to ${user.displayName} (global mode user)`);
+            io.to(socketId).emit('newPost', post);
+            matchingUsers++;
+            continue;
+        }
+        
+        // If post is global (no location), send to everyone in the channel
+        if (post.isGlobal || !post.latitude || !post.longitude) {
+            console.log(`   ✅ Sending global post to ${user.displayName}`);
+            io.to(socketId).emit('newPost', post);
+            matchingUsers++;
+            continue;
+        }
+        
+        // Distance filter for location-based posts to location-based users
         const distance = calculateDistance(
             user.latitude, user.longitude,
             post.latitude, post.longitude

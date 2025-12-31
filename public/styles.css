@@ -289,6 +289,79 @@ body {
     color: var(--text-secondary);
 }
 
+.location-toggle {
+    margin-bottom: var(--spacing-sm);
+}
+
+.location-help {
+    margin-top: var(--spacing-sm);
+}
+
+.location-help small {
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
+/* Checkbox label styling */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+/* Location option in TOS modal */
+.location-option {
+    background-color: var(--background-color);
+    border-radius: var(--border-radius-small);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.location-option .checkbox-label {
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+}
+
+.location-option small {
+    color: var(--text-light);
+    display: block;
+    margin-top: var(--spacing-sm);
+}
+
+/* Global mode indicator */
+.global-mode-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.location-mode-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
 /* Chat Container */
 .chat-container {
     flex: 1;

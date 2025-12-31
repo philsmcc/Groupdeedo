@@ -40,11 +40,12 @@ class Database {
                     display_name TEXT NOT NULL,
                     message TEXT NOT NULL,
                     image TEXT,
-                    latitude REAL NOT NULL,
-                    longitude REAL NOT NULL,
+                    latitude REAL,
+                    longitude REAL,
                     channel TEXT NOT NULL DEFAULT '',
                     timestamp TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    is_global INTEGER DEFAULT 0
                 )
             `;
             
@@ -73,7 +74,40 @@ class Database {
                     });
                 });
                 
-                resolve();
+                // Run migrations for existing databases
+                this.runMigrations().then(resolve).catch(reject);
+            });
+        });
+    }
+    
+    runMigrations() {
+        return new Promise((resolve, reject) => {
+            // Check if is_global column exists
+            this.db.all("PRAGMA table_info(posts)", (err, columns) => {
+                if (err) {
+                    console.error('Error checking table schema:', err);
+                    reject(err);
+                    return;
+                }
+                
+                const hasIsGlobal = columns.some(col => col.name === 'is_global');
+                
+                if (!hasIsGlobal) {
+                    console.log('🔄 Running migration: adding is_global column to posts table');
+                    this.db.run('ALTER TABLE posts ADD COLUMN is_global INTEGER DEFAULT 0', (alterErr) => {
+                        if (alterErr) {
+                            // Column might already exist in some edge cases
+                            if (!alterErr.message.includes('duplicate column')) {
+                                console.error('Error adding is_global column:', alterErr);
+                            }
+                        } else {
+                            console.log('✅ Migration complete: is_global column added');
+                        }
+                        resolve();
+                    });
+                } else {
+                    resolve();
+                }
             });
         });
     }
@@ -83,8 +117,8 @@ class Database {
             const query = `
                 INSERT INTO posts (
                     id, session_id, display_name, message, image, 
-                    latitude, longitude, channel, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    latitude, longitude, channel, timestamp, is_global
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             const params = [
@@ -93,10 +127,11 @@ class Database {
                 post.displayName,
                 post.message,
                 post.image,
-                post.latitude,
-                post.longitude,
+                post.latitude || null,
+                post.longitude || null,
                 post.channel,
-                post.timestamp
+                post.timestamp,
+                post.isGlobal ? 1 : 0
             ];
             
             this.db.run(query, params, function(err) {
@@ -135,7 +170,8 @@ class Database {
                         longitude: row.longitude,
                         channel: row.channel,
                         timestamp: row.timestamp,
-                        createdAt: row.created_at
+                        createdAt: row.created_at,
+                        isGlobal: row.is_global === 1 || (!row.latitude && !row.longitude)
                     }));
                     
                     resolve(posts.reverse()); // Reverse to get chronological order
@@ -491,6 +527,212 @@ class Database {
         });
     }
     
+    // Voting methods
+    async addVote(postId, sessionId, voteType) {
+        return new Promise((resolve, reject) => {
+            // First, check if user already voted on this post
+            const checkQuery = 'SELECT vote_type FROM votes WHERE post_id = ? AND session_id = ?';
+            
+            this.db.get(checkQuery, [postId, sessionId], (err, existingVote) => {
+                if (err) {
+                    console.error('Error checking existing vote:', err);
+                    reject(err);
+                    return;
+                }
+                
+                if (existingVote) {
+                    if (existingVote.vote_type === voteType) {
+                        // Same vote type - remove the vote (toggle off)
+                        const deleteQuery = 'DELETE FROM votes WHERE post_id = ? AND session_id = ?';
+                        this.db.run(deleteQuery, [postId, sessionId], function(deleteErr) {
+                            if (deleteErr) {
+                                console.error('Error removing vote:', deleteErr);
+                                reject(deleteErr);
+                            } else {
+                                console.log(`Vote removed: ${sessionId} removed ${voteType} vote from post ${postId}`);
+                                resolve({ 
+                                    action: 'removed', 
+                                    voteType: voteType,
+                                    postId: postId 
+                                });
+                            }
+                        });
+                    } else {
+                        // Different vote type - update the existing vote
+                        const updateQuery = 'UPDATE votes SET vote_type = ?, created_at = CURRENT_TIMESTAMP WHERE post_id = ? AND session_id = ?';
+                        this.db.run(updateQuery, [voteType, postId, sessionId], function(updateErr) {
+                            if (updateErr) {
+                                console.error('Error updating vote:', updateErr);
+                                reject(updateErr);
+                            } else {
+                                console.log(`Vote updated: ${sessionId} changed to ${voteType} vote on post ${postId}`);
+                                resolve({ 
+                                    action: 'updated', 
+                                    voteType: voteType,
+                                    previousVoteType: existingVote.vote_type,
+                                    postId: postId 
+                                });
+                            }
+                        });
+                    }
+                } else {
+                    // No existing vote - add new vote
+                    const insertQuery = 'INSERT INTO votes (post_id, session_id, vote_type) VALUES (?, ?, ?)';
+                    this.db.run(insertQuery, [postId, sessionId, voteType], function(insertErr) {
+                        if (insertErr) {
+                            console.error('Error adding vote:', insertErr);
+                            reject(insertErr);
+                        } else {
+                            console.log(`New vote added: ${sessionId} voted ${voteType} on post ${postId}`);
+                            resolve({ 
+                                action: 'added', 
+                                voteType: voteType,
+                                postId: postId 
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    }
+    
+    async getPostVoteCounts(postId) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT 
+                    vote_type,
+                    COUNT(*) as count
+                FROM votes 
+                WHERE post_id = ? 
+                GROUP BY vote_type
+            `;
+            
+            this.db.all(query, [postId], (err, rows) => {
+                if (err) {
+                    console.error('Error getting vote counts:', err);
+                    reject(err);
+                } else {
+                    const voteCounts = { up: 0, down: 0 };
+                    rows.forEach(row => {
+                        voteCounts[row.vote_type] = row.count;
+                    });
+                    resolve(voteCounts);
+                }
+            });
+        });
+    }
+    
+    async getUserVote(postId, sessionId) {
+        return new Promise((resolve, reject) => {
+            const query = 'SELECT vote_type FROM votes WHERE post_id = ? AND session_id = ?';
+            
+            this.db.get(query, [postId, sessionId], (err, row) => {
+                if (err) {
+                    console.error('Error getting user vote:', err);
+                    reject(err);
+                } else {
+                    resolve(row ? row.vote_type : null);
+                }
+            });
+        });
+    }
+    
+    async checkPostForAutoDelete(postId) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT 
+                    COUNT(DISTINCT session_id) as downvote_count
+                FROM votes 
+                WHERE post_id = ? AND vote_type = 'down'
+            `;
+            
+            this.db.get(query, [postId], (err, row) => {
+                if (err) {
+                    console.error('Error checking post for auto-delete:', err);
+                    reject(err);
+                } else {
+                    const shouldDelete = row.downvote_count >= 3;
+                    resolve({
+                        shouldDelete,
+                        downvoteCount: row.downvote_count,
+                        postId: postId
+                    });
+                }
+            });
+        });
+    }
+    
+    async getPostsWithVoteCounts(timeFilter = 'all', limit = 100) {
+        return new Promise((resolve, reject) => {
+            let whereClause = '';
+            
+            switch (timeFilter) {
+                case 'hour':
+                    whereClause = "WHERE p.created_at >= datetime('now', '-1 hour')";
+                    break;
+                case 'day':
+                    whereClause = "WHERE p.created_at >= datetime('now', '-1 day')";
+                    break;
+                case 'week':
+                    whereClause = "WHERE p.created_at >= datetime('now', '-7 days')";
+                    break;
+                case 'month':
+                    whereClause = "WHERE p.created_at >= datetime('now', '-30 days')";
+                    break;
+                default:
+                    whereClause = '';
+            }
+            
+            const query = `
+                SELECT 
+                    p.*,
+                    COALESCE(v_up.count, 0) as upvotes,
+                    COALESCE(v_down.count, 0) as downvotes
+                FROM posts p
+                LEFT JOIN (
+                    SELECT post_id, COUNT(*) as count 
+                    FROM votes 
+                    WHERE vote_type = 'up' 
+                    GROUP BY post_id
+                ) v_up ON p.id = v_up.post_id
+                LEFT JOIN (
+                    SELECT post_id, COUNT(*) as count 
+                    FROM votes 
+                    WHERE vote_type = 'down' 
+                    GROUP BY post_id
+                ) v_down ON p.id = v_down.post_id
+                ${whereClause}
+                ORDER BY p.created_at DESC 
+                LIMIT ?
+            `;
+            
+            this.db.all(query, [limit], (err, rows) => {
+                if (err) {
+                    console.error('Error fetching posts with vote counts:', err);
+                    reject(err);
+                } else {
+                    const posts = rows.map(row => ({
+                        id: row.id,
+                        sessionId: row.session_id,
+                        displayName: row.display_name,
+                        message: row.message,
+                        image: row.image,
+                        latitude: row.latitude,
+                        longitude: row.longitude,
+                        channel: row.channel,
+                        timestamp: row.timestamp,
+                        createdAt: row.created_at,
+                        upvotes: row.upvotes,
+                        downvotes: row.downvotes,
+                        isGlobal: row.is_global === 1 || (!row.latitude && !row.longitude)
+                    }));
+                    
+                    resolve(posts);
+                }
+            });
+        });
+    }
+
     close() {
         return new Promise((resolve) => {
             if (this.db) {

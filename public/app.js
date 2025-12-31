@@ -6,7 +6,8 @@ class GroupdeedoApp {
             latitude: null,
             longitude: null,
             radius: 5, // Default changed to 5 miles
-            channel: ''
+            channel: '',
+            locationEnabled: true // New: track if user wants location
         };
         this.isConnected = false;
         this.hasAgreedToTos = false;
@@ -46,6 +47,9 @@ class GroupdeedoApp {
                 if (parsedSettings.channel !== undefined) {
                     this.userSettings.channel = parsedSettings.channel;
                 }
+                if (parsedSettings.locationEnabled !== undefined) {
+                    this.userSettings.locationEnabled = parsedSettings.locationEnabled;
+                }
                 
                 console.log('Loaded user settings:', this.userSettings);
             }
@@ -60,7 +64,8 @@ class GroupdeedoApp {
             const settingsToSave = {
                 displayName: this.userSettings.displayName,
                 radius: this.userSettings.radius,
-                channel: this.userSettings.channel
+                channel: this.userSettings.channel,
+                locationEnabled: this.userSettings.locationEnabled
             };
             
             localStorage.setItem('groupdeedo_user_settings', JSON.stringify(settingsToSave));
@@ -76,7 +81,15 @@ class GroupdeedoApp {
         document.getElementById('radiusSlider').value = this.userSettings.radius;
         document.getElementById('radiusValue').textContent = this.userSettings.radius;
         document.getElementById('channelName').value = this.userSettings.channel;
+        
+        // Initialize location toggle
+        const locationToggle = document.getElementById('locationToggle');
+        if (locationToggle) {
+            locationToggle.checked = this.userSettings.locationEnabled;
+        }
+        
         this.toggleShareButton();
+        this.updateLocationUI();
     }
     
     checkTosAgreement() {
@@ -85,7 +98,11 @@ class GroupdeedoApp {
         if (agreed === 'true') {
             this.hasAgreedToTos = true;
             this.showApp();
-            this.requestLocation();
+            if (this.userSettings.locationEnabled) {
+                this.requestLocation();
+            } else {
+                this.updateLocationUI();
+            }
             this.connectSocket();
         } else {
             this.showTosModal();
@@ -124,8 +141,18 @@ class GroupdeedoApp {
         document.getElementById('agreeTos').addEventListener('click', () => {
             localStorage.setItem('groupdeedo_tos_agreed', 'true');
             this.hasAgreedToTos = true;
+            
+            // Check if user wants location enabled
+            const enableLocationCheckbox = document.getElementById('enableLocationCheckbox');
+            this.userSettings.locationEnabled = enableLocationCheckbox ? enableLocationCheckbox.checked : true;
+            this.saveUserSettings();
+            
             this.showApp();
-            this.requestLocation();
+            if (this.userSettings.locationEnabled) {
+                this.requestLocation();
+            } else {
+                this.updateLocationUI();
+            }
             this.connectSocket();
         });
         
@@ -168,6 +195,47 @@ class GroupdeedoApp {
             throttledUpdateSettings();
             this.toggleShareButton();
         });
+        
+        // Clear privacy key button
+        document.getElementById('clearChannel').addEventListener('click', () => {
+            document.getElementById('channelName').value = '';
+            this.userSettings.channel = '';
+            this.saveUserSettings();
+            throttledUpdateSettings();
+            this.toggleShareButton();
+            this.showNotification('Privacy key cleared', 'success');
+        });
+        
+        // Settings OK button
+        document.getElementById('settingsOk').addEventListener('click', () => {
+            this.closeSettings();
+            this.showNotification('Settings saved successfully', 'success');
+        });
+        
+        // Location toggle in settings
+        const locationToggle = document.getElementById('locationToggle');
+        if (locationToggle) {
+            locationToggle.addEventListener('change', (e) => {
+                this.userSettings.locationEnabled = e.target.checked;
+                this.saveUserSettings();
+                
+                if (e.target.checked) {
+                    this.requestLocation();
+                    this.showNotification('Location enabled - finding your position...', 'info');
+                } else {
+                    // Disable location tracking
+                    if (this.watchPositionId) {
+                        navigator.geolocation.clearWatch(this.watchPositionId);
+                        this.watchPositionId = null;
+                    }
+                    this.userSettings.latitude = null;
+                    this.userSettings.longitude = null;
+                    this.updateLocationUI();
+                    this.updateSettings();
+                    this.showNotification('Location disabled - now in global mode', 'info');
+                }
+            });
+        }
         
         // Message sending
         document.getElementById('messageInput').addEventListener('keydown', (e) => {
@@ -227,11 +295,39 @@ class GroupdeedoApp {
         });
     }
     
+    updateLocationUI() {
+        const statusEl = document.getElementById('locationStatus');
+        const locationToggle = document.getElementById('locationToggle');
+        
+        if (locationToggle) {
+            locationToggle.checked = this.userSettings.locationEnabled;
+        }
+        
+        if (!this.userSettings.locationEnabled) {
+            statusEl.textContent = '🌐 Global mode - seeing all messages';
+            statusEl.className = 'location-status global-mode';
+        } else if (this.userSettings.latitude && this.userSettings.longitude) {
+            statusEl.textContent = '📍 Location active - seeing nearby messages';
+            statusEl.className = 'location-status location-active';
+        } else {
+            statusEl.textContent = '📍 Getting location...';
+            statusEl.className = 'location-status';
+        }
+    }
+    
     requestLocation() {
         const statusEl = document.getElementById('locationStatus');
         
+        if (!this.userSettings.locationEnabled) {
+            this.updateLocationUI();
+            return;
+        }
+        
         if (!navigator.geolocation) {
-            statusEl.textContent = '❌ Geolocation not supported';
+            statusEl.textContent = '❌ Geolocation not supported - using global mode';
+            this.userSettings.locationEnabled = false;
+            this.saveUserSettings();
+            this.updateLocationUI();
             return;
         }
         
@@ -247,7 +343,7 @@ class GroupdeedoApp {
             (position) => {
                 this.userSettings.latitude = position.coords.latitude;
                 this.userSettings.longitude = position.coords.longitude;
-                statusEl.textContent = '📍 Location found';
+                this.updateLocationUI();
                 this.updateSettings();
                 
                 // Start watching position for updates (throttled to prevent excessive updates)
@@ -270,19 +366,24 @@ class GroupdeedoApp {
             },
             (error) => {
                 console.error('Geolocation error:', error);
-                let message = '❌ Location access denied';
+                let message = '🌐 Global mode';
                 switch (error.code) {
                     case error.PERMISSION_DENIED:
-                        message = '❌ Location access denied. Please enable location to use Groupdeedo.';
+                        message = '🌐 Location denied - using global mode';
                         break;
                     case error.POSITION_UNAVAILABLE:
-                        message = '❌ Location unavailable';
+                        message = '🌐 Location unavailable - using global mode';
                         break;
                     case error.TIMEOUT:
-                        message = '❌ Location request timed out';
+                        message = '🌐 Location timeout - using global mode';
                         break;
                 }
                 statusEl.textContent = message;
+                // Don't block the user - they can still use the app in global mode
+                this.userSettings.locationEnabled = false;
+                this.saveUserSettings();
+                this.updateLocationUI();
+                this.showNotification('Using global mode - you can enable location in Settings', 'info');
             },
             options
         );
@@ -354,7 +455,14 @@ class GroupdeedoApp {
         document.getElementById('radiusValue').textContent = this.userSettings.radius;
         document.getElementById('channelName').value = this.userSettings.channel;
         
+        // Update location toggle
+        const locationToggle = document.getElementById('locationToggle');
+        if (locationToggle) {
+            locationToggle.checked = this.userSettings.locationEnabled;
+        }
+        
         this.toggleShareButton();
+        this.updateLocationUI();
     }
     
     closeSettings() {
@@ -382,11 +490,6 @@ class GroupdeedoApp {
         const message = messageInput.value.trim();
         
         if (!message && !this.selectedImageData) {
-            return;
-        }
-        
-        if (!this.userSettings.latitude || !this.userSettings.longitude) {
-            this.showNotification('Location required to send messages', 'error');
             return;
         }
         
@@ -679,6 +782,11 @@ class GroupdeedoApp {
             channelInfo = `<span>📻 ${post.channel}</span>`;
         }
         
+        // Show location mode - global or nearby
+        const locationBadge = post.isGlobal 
+            ? '<span class="global-mode-indicator">🌐 Global</span>'
+            : '<span class="location-mode-indicator">📍 Nearby</span>';
+        
         messageEl.innerHTML = `
             <div class=\"message-header\">
                 <span class=\"message-author\">${this.escapeHtml(post.displayName)}</span>
@@ -688,7 +796,7 @@ class GroupdeedoApp {
             ${imageHtml}
             <div class=\"message-meta\">
                 ${channelInfo}
-                <span>📍 Nearby</span>
+                ${locationBadge}
             </div>
         `;
         
