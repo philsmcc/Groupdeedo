@@ -71,8 +71,9 @@ body {
 
 /* Header */
 .app-header {
-    background: var(--brand-gradient);
-    color: white;
+    background: #000000;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
     padding: var(--spacing-md);
     box-shadow: var(--shadow-medium);
     position: relative;
