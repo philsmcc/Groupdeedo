@@ -142,16 +142,19 @@ io.on('connection', (socket) => {
         }
         
         try {
+            // Use 0,0 as placeholder for global posts (database requires NOT NULL)
+            const isGlobalPost = !user.latitude || !user.longitude;
             const post = {
                 id: uuidv4(),
                 sessionId: user.sessionId,
                 displayName: user.displayName,
                 message: messageData.message,
                 image: messageData.image || null,
-                latitude: user.latitude || null,
-                longitude: user.longitude || null,
+                latitude: user.latitude || 0,
+                longitude: user.longitude || 0,
                 channel: normalizeChannel(user.channel),
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                isGlobal: isGlobalPost
             };
             
             console.log(`📤 User ${user.displayName} (${socket.id}) sending message to channel: [${post.channel}]`);
@@ -228,8 +231,8 @@ async function sendFilteredPosts(socket) {
                 return true;
             }
             
-            // If post has no location, show to everyone in channel
-            if (!post.latitude || !post.longitude) {
+            // If post has no location (global post - stored as 0,0), show to everyone in channel
+            if (!post.latitude || !post.longitude || (post.latitude === 0 && post.longitude === 0)) {
                 return true;
             }
             
@@ -276,8 +279,8 @@ function broadcastToRelevantUsers(post) {
             continue;
         }
         
-        // If post has no location, send to everyone in channel
-        if (!postHasLocation) {
+        // If post has no location (global post), send to everyone in channel
+        if (!postHasLocation || (post.latitude === 0 && post.longitude === 0) || post.isGlobal) {
             console.log(`   ✅ Sending global post to ${user.displayName}`);
             io.to(socketId).emit('newPost', post);
             matchingUsers++;
