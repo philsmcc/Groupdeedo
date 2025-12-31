@@ -3,14 +3,10 @@ class GroupdeedoApp {
         this.socket = null;
         this.userSettings = {
             displayName: 'Anonymous',
-            latitude: null,
-            longitude: null,
-            radius: 5, // Default changed to 5 miles
             channel: ''
         };
         this.isConnected = false;
         this.hasAgreedToTos = false;
-        this.watchPositionId = null;
         
         // Load saved user settings from localStorage
         this.loadUserSettings();
@@ -40,9 +36,7 @@ class GroupdeedoApp {
                 if (parsedSettings.displayName) {
                     this.userSettings.displayName = parsedSettings.displayName;
                 }
-                if (parsedSettings.radius && parsedSettings.radius >= 1 && parsedSettings.radius <= 100) {
-                    this.userSettings.radius = parsedSettings.radius;
-                }
+
                 if (parsedSettings.channel !== undefined) {
                     this.userSettings.channel = parsedSettings.channel;
                 }
@@ -59,7 +53,6 @@ class GroupdeedoApp {
             // Only save persistent settings (not location data for privacy)
             const settingsToSave = {
                 displayName: this.userSettings.displayName,
-                radius: this.userSettings.radius,
                 channel: this.userSettings.channel
             };
             
@@ -73,8 +66,6 @@ class GroupdeedoApp {
     initializeSettingsUI() {
         // Set initial form values to match loaded settings
         document.getElementById('displayName').value = this.userSettings.displayName;
-        document.getElementById('radiusSlider').value = this.userSettings.radius;
-        document.getElementById('radiusValue').textContent = this.userSettings.radius;
         document.getElementById('channelName').value = this.userSettings.channel;
         this.toggleShareButton();
     }
@@ -85,7 +76,6 @@ class GroupdeedoApp {
         if (agreed === 'true') {
             this.hasAgreedToTos = true;
             this.showApp();
-            this.requestLocation();
             this.connectSocket();
         } else {
             this.showTosModal();
@@ -124,17 +114,7 @@ class GroupdeedoApp {
         document.getElementById('agreeTos').addEventListener('click', () => {
             localStorage.setItem('groupdeedo_tos_agreed', 'true');
             this.hasAgreedToTos = true;
-            
-            // Check if user wants location
-            const locationCheckbox = document.getElementById('enableLocationCheckbox');
-            const wantsLocation = locationCheckbox ? locationCheckbox.checked : true;
-            
             this.showApp();
-            if (wantsLocation) {
-                this.requestLocation();
-            } else {
-                document.getElementById('locationStatus').textContent = '🌐 Global mode - seeing all messages';
-            }
             this.connectSocket();
         });
         
@@ -159,14 +139,6 @@ class GroupdeedoApp {
         
         document.getElementById('displayName').addEventListener('input', (e) => {
             this.userSettings.displayName = e.target.value || 'Anonymous';
-            this.saveUserSettings(); // Save immediately for better UX
-            throttledUpdateSettings();
-        });
-        
-        document.getElementById('radiusSlider').addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            this.userSettings.radius = value;
-            document.getElementById('radiusValue').textContent = value;
             this.saveUserSettings(); // Save immediately for better UX
             throttledUpdateSettings();
         });
@@ -252,67 +224,6 @@ class GroupdeedoApp {
         });
     }
     
-    requestLocation() {
-        const statusEl = document.getElementById('locationStatus');
-        
-        if (!navigator.geolocation) {
-            statusEl.textContent = '❌ Geolocation not supported';
-            return;
-        }
-        
-        statusEl.textContent = '📍 Getting location...';
-        
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000 // 1 minute
-        };
-        
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                this.userSettings.latitude = position.coords.latitude;
-                this.userSettings.longitude = position.coords.longitude;
-                statusEl.textContent = '📍 Location Noted..';
-                this.updateSettings();
-                
-                // Start watching position for updates (throttled to prevent excessive updates)
-                let lastLocationUpdate = 0;
-                const LOCATION_UPDATE_THROTTLE = 30000; // Only update location every 30 seconds
-                
-                this.watchPositionId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const now = Date.now();
-                        if (now - lastLocationUpdate > LOCATION_UPDATE_THROTTLE) {
-                            this.userSettings.latitude = pos.coords.latitude;
-                            this.userSettings.longitude = pos.coords.longitude;
-                            this.updateSettings();
-                            lastLocationUpdate = now;
-                        }
-                    },
-                    null,
-                    options
-                );
-            },
-            (error) => {
-                console.error('Geolocation error:', error);
-                let message = '❌ Location access denied';
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        message = '❌ Location access denied. Please enable location to use Groupdeedo.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        message = '❌ Location unavailable';
-                        break;
-                    case error.TIMEOUT:
-                        message = '❌ Location request timed out';
-                        break;
-                }
-                statusEl.textContent = message;
-            },
-            options
-        );
-    }
-    
     connectSocket() {
         this.socket = io();
         
@@ -388,8 +299,6 @@ class GroupdeedoApp {
         
         // Update form values
         document.getElementById('displayName').value = this.userSettings.displayName;
-        document.getElementById('radiusSlider').value = this.userSettings.radius;
-        document.getElementById('radiusValue').textContent = this.userSettings.radius;
         document.getElementById('channelName').value = this.userSettings.channel;
         
         this.toggleShareButton();
@@ -720,10 +629,7 @@ class GroupdeedoApp {
             </div>
             <div class=\"message-content\">${this.escapeHtml(post.message)}</div>
             ${imageHtml}
-            <div class=\"message-meta\">
-                ${channelInfo}
-                <span>📍 Nearby</span>
-            </div>
+            ${channelInfo ? `<div class=\"message-meta\">${channelInfo}</div>` : ''}
             <div class=\"message-votes\">
                 <button class=\"vote-btn vote-up\" data-post-id=\"${post.id}\" data-vote-type=\"up\">
                     👍 <span class=\"vote-count upvote-count\">${post.upvotes || 0}</span>
@@ -848,7 +754,7 @@ class GroupdeedoApp {
         welcomeMsg.className = 'welcome-message';
         welcomeMsg.innerHTML = `
             <p>🎉 Welcome to Groupdeedo!</p>
-            <p>You'll see messages from people near you.</p>
+            <p>Chat with others in the same channel.</p>
             <p>Tap the gear icon ⚙️ to customize your settings.</p>
         `;
         container.appendChild(welcomeMsg);

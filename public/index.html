@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Groupdeedo - Local Chat</title>
-    <meta name="description" content="Anonymous location-based group chat">
+    <meta name="description" content="Anonymous group chat">
     <meta name="theme-color" content="#FF5700">
     
     <!-- PWA Meta Tags -->
@@ -35,13 +35,6 @@
                     <li>Not share personal information</li>
                     <li>Not post illegal or harmful content</li>
                 </ul>
-                <div class="location-option">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="enableLocationCheckbox" checked>
-                        <span>📍 Enable location to see nearby messages</span>
-                    </label>
-                    <p><small>Optional - without location you'll see all messages globally.</small></p>
-                </div>
             </div>
             <div class="modal-footer">
                 <button id="agreeTos" class="btn btn-primary">I Agree & Continue</button>
@@ -86,15 +79,6 @@
                 </div>
                 
                 <div class="setting-group">
-                    <label for="radiusSlider">Radius: <span id="radiusValue">5</span> miles</label>
-                    <input type="range" id="radiusSlider" min="1" max="100" value="5" class="slider">
-                    <div class="slider-labels">
-                        <span>1 mi</span>
-                        <span>100 mi</span>
-                    </div>
-                </div>
-                
-                <div class="setting-group">
                     <label for="channelName">Privacy Key (optional):</label>
                     <div class="channel-input-group">
                         <input type="text" id="channelName" placeholder="Leave empty for public chat" maxlength="50">
@@ -106,12 +90,6 @@
                     </div>
                     <div class="settings-ok-button">
                         <button id="settingsOk" class="btn btn-primary settings-ok">✓ OK</button>
-                    </div>
-                </div>
-                
-                <div class="setting-group">
-                    <div class="location-status">
-                        <span id="locationStatus">📍 Getting location...</span>
                     </div>
                 </div>
                 
@@ -128,8 +106,8 @@
             <div id="messagesContainer" class="messages">
                 <div class="welcome-message">
                     <p>🎉 Welcome to Groupdeedo!</p>
-                    <p>You'll see messages from people near you.</p>
-                    <p>Tap the gear icon ⚙️ to customize your settings.</p>
+                    <p>Chat with others in the same channel.</p>
+                    <p>Tap the gear icon ⚙️ to set your name or join a private channel.</p>
                 </div>
             </div>
         </main>

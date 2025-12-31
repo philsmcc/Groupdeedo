@@ -18,7 +18,7 @@ function uuidv4() {
 
 // Import custom modules - Testing custom LoRa trunk.
 const Database = require('./models/database');
-const { calculateDistance, isWithinRadius } = require('./utils/location');
+// Location utils removed - no longer needed
 const CleanupManager = require('./scripts/cleanup');
 const AdminAuth = require('./middleware/adminAuth');
 
@@ -94,9 +94,6 @@ io.on('connection', (socket) => {
         id: socket.id,
         sessionId: uuidv4(),
         displayName: 'Anonymous',
-        latitude: null,
-        longitude: null,
-        radius: 10, // miles
         channel: '', // empty = public
         connectedAt: new Date()
     });
@@ -109,25 +106,18 @@ io.on('connection', (socket) => {
             const oldUser = { ...user };
             
             user.displayName = settings.displayName || user.displayName;
-            user.latitude = settings.latitude || user.latitude;
-            user.longitude = settings.longitude || user.longitude;
-            user.radius = settings.radius || user.radius;
             user.channel = settings.channel !== undefined ? normalizeChannel(settings.channel) : user.channel;
             
             console.log(`⚙️  User ${user.displayName} (${socket.id}) updated settings:`, {
-                channel: user.channel,
-                radius: user.radius,
-                location: user.latitude ? `${user.latitude.toFixed(6)}, ${user.longitude.toFixed(6)}` : 'none'
+                channel: user.channel
             });
             
             activeUsers.set(socket.id, user);
             
-            // Only send updated posts if meaningful settings changed (location, radius, or channel)
-            const locationChanged = oldUser.latitude !== user.latitude || oldUser.longitude !== user.longitude;
-            const radiusChanged = oldUser.radius !== user.radius;
+            // Only send updated posts if channel changed
             const channelChanged = oldUser.channel !== user.channel;
             
-            if (locationChanged || radiusChanged || channelChanged) {
+            if (channelChanged) {
                 sendFilteredPosts(socket);
             }
         }
@@ -142,19 +132,16 @@ io.on('connection', (socket) => {
         }
         
         try {
-            // Use 0,0 as placeholder for global posts (database requires NOT NULL)
-            const isGlobalPost = !user.latitude || !user.longitude;
             const post = {
                 id: uuidv4(),
                 sessionId: user.sessionId,
                 displayName: user.displayName,
                 message: messageData.message,
                 image: messageData.image || null,
-                latitude: user.latitude || 0,
-                longitude: user.longitude || 0,
+                latitude: 0,
+                longitude: 0,
                 channel: normalizeChannel(user.channel),
-                timestamp: new Date().toISOString(),
-                isGlobal: isGlobalPost
+                timestamp: new Date().toISOString()
             };
             
             console.log(`📤 User ${user.displayName} (${socket.id}) sending message to channel: [${post.channel}]`);
@@ -170,8 +157,6 @@ io.on('connection', (socket) => {
                 id: post.id,
                 displayName: post.displayName,
                 channel: post.channel,
-                latitude: post.latitude,
-                longitude: post.longitude,
                 timestamp: post.timestamp,
                 hasImage: !!post.image
             });
@@ -218,21 +203,10 @@ async function sendFilteredPosts(socket) {
     
     try {
         const allPosts = await db.getRecentPosts(100); // Get last 100 posts
-        const userHasLocation = user.latitude && user.longitude;
         
+        // Filter by channel only - everyone in the same channel sees the same posts
         const filteredPosts = allPosts.filter(post => {
-            // Channel filter: must match exactly (empty matches empty)
-            if (normalizeChannel(post.channel) !== normalizeChannel(user.channel)) {
-                return false;
-            }
-            
-            // Distance filter - global users (0,0) will match global posts (0,0)
-            const distance = calculateDistance(
-                user.latitude || 0, user.longitude || 0,
-                post.latitude || 0, post.longitude || 0
-            );
-            
-            return distance <= user.radius;
+            return normalizeChannel(post.channel) === normalizeChannel(user.channel);
         });
         
         socket.emit('posts', filteredPosts);
@@ -248,20 +222,8 @@ function broadcastToRelevantUsers(post) {
     let matchingUsers = 0;
     
     for (const [socketId, user] of activeUsers.entries()) {
-        // Channel filter
-        const normalizedPostChannel = normalizeChannel(post.channel);
-        const normalizedUserChannel = normalizeChannel(user.channel);
-        if (normalizedPostChannel !== normalizedUserChannel) {
-            continue;
-        }
-        
-        // Distance filter - global users/posts use 0,0 so they match each other
-        const distance = calculateDistance(
-            user.latitude || 0, user.longitude || 0,
-            post.latitude || 0, post.longitude || 0
-        );
-        
-        if (distance <= user.radius) {
+        // Channel filter only - everyone in the same channel sees the post
+        if (normalizeChannel(post.channel) === normalizeChannel(user.channel)) {
             io.to(socketId).emit('newPost', post);
             matchingUsers++;
         }
