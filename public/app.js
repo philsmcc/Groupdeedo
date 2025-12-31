@@ -124,8 +124,17 @@ class GroupdeedoApp {
         document.getElementById('agreeTos').addEventListener('click', () => {
             localStorage.setItem('groupdeedo_tos_agreed', 'true');
             this.hasAgreedToTos = true;
+            
+            // Check if user wants location
+            const locationCheckbox = document.getElementById('enableLocationCheckbox');
+            const wantsLocation = locationCheckbox ? locationCheckbox.checked : true;
+            
             this.showApp();
-            this.requestLocation();
+            if (wantsLocation) {
+                this.requestLocation();
+            } else {
+                document.getElementById('locationStatus').textContent = '🌐 Global mode - seeing all messages';
+            }
             this.connectSocket();
         });
         
@@ -411,11 +420,6 @@ class GroupdeedoApp {
         const message = messageInput.value.trim();
         
         if (!message && !this.selectedImageData) {
-            return;
-        }
-        
-        if (!this.userSettings.latitude || !this.userSettings.longitude) {
-            this.showNotification('Location required to send messages', 'error');
             return;
         }
         

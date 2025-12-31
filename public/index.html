@@ -28,15 +28,20 @@
                 <h2>Welcome to Groupdeedo</h2>
             </div>
             <div class="modal-body">
-                <p>📍 <strong>Location-based anonymous chat</strong></p>
+                <p>💬 <strong>Anonymous group chat</strong></p>
                 <p>By using Groupdeedo, you agree to:</p>
                 <ul>
                     <li>Be respectful and kind to others</li>
                     <li>Not share personal information</li>
                     <li>Not post illegal or harmful content</li>
-                    <li>Allow location access for the app to work</li>
                 </ul>
-                <p><small>Your location is only used to show you nearby messages and is not stored permanently.</small></p>
+                <div class="location-option">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enableLocationCheckbox" checked>
+                        <span>📍 Enable location to see nearby messages</span>
+                    </label>
+                    <p><small>Optional - without location you'll see all messages globally.</small></p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button id="agreeTos" class="btn btn-primary">I Agree & Continue</button>

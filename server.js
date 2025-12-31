@@ -136,8 +136,8 @@ io.on('connection', (socket) => {
     // Handle new message
     socket.on('sendMessage', async (messageData) => {
         const user = activeUsers.get(socket.id);
-        if (!user || !user.latitude || !user.longitude) {
-            socket.emit('error', 'Location required to send messages');
+        if (!user) {
+            socket.emit('error', 'Not connected');
             return;
         }
         
@@ -148,8 +148,8 @@ io.on('connection', (socket) => {
                 displayName: user.displayName,
                 message: messageData.message,
                 image: messageData.image || null,
-                latitude: user.latitude,
-                longitude: user.longitude,
+                latitude: user.latitude || null,
+                longitude: user.longitude || null,
                 channel: normalizeChannel(user.channel),
                 timestamp: new Date().toISOString()
             };
@@ -209,16 +209,28 @@ function normalizeChannel(channel) {
 // Function to send filtered posts to a specific user
 async function sendFilteredPosts(socket) {
     const user = activeUsers.get(socket.id);
-    if (!user || !user.latitude || !user.longitude) {
+    if (!user) {
         return;
     }
     
     try {
         const allPosts = await db.getRecentPosts(100); // Get last 100 posts
+        const userHasLocation = user.latitude && user.longitude;
+        
         const filteredPosts = allPosts.filter(post => {
             // Channel filter: must match exactly (empty matches empty)
             if (normalizeChannel(post.channel) !== normalizeChannel(user.channel)) {
                 return false;
+            }
+            
+            // If user has no location, show all posts in the channel
+            if (!userHasLocation) {
+                return true;
+            }
+            
+            // If post has no location, show to everyone in channel
+            if (!post.latitude || !post.longitude) {
+                return true;
             }
             
             // Distance filter
@@ -241,9 +253,10 @@ async function sendFilteredPosts(socket) {
 function broadcastToRelevantUsers(post) {
     console.log(`📡 Broadcasting post from channel: "${post.channel}" to ${activeUsers.size} users`);
     let matchingUsers = 0;
+    const postHasLocation = post.latitude && post.longitude;
     
     for (const [socketId, user] of activeUsers.entries()) {
-        if (!user.latitude || !user.longitude) continue;
+        const userHasLocation = user.latitude && user.longitude;
         
         console.log(`   👤 User ${user.displayName} (${socketId}) is in channel: [${user.channel}]`);
         
@@ -252,6 +265,22 @@ function broadcastToRelevantUsers(post) {
         const normalizedUserChannel = normalizeChannel(user.channel);
         if (normalizedPostChannel !== normalizedUserChannel) {
             console.log(`   ❌ Channel mismatch: post=[${normalizedPostChannel}] vs user=[${normalizedUserChannel}]`);
+            continue;
+        }
+        
+        // If user has no location, they see all posts in their channel
+        if (!userHasLocation) {
+            console.log(`   ✅ Sending to ${user.displayName} (global mode)`);
+            io.to(socketId).emit('newPost', post);
+            matchingUsers++;
+            continue;
+        }
+        
+        // If post has no location, send to everyone in channel
+        if (!postHasLocation) {
+            console.log(`   ✅ Sending global post to ${user.displayName}`);
+            io.to(socketId).emit('newPost', post);
+            matchingUsers++;
             continue;
         }
         

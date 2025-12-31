@@ -652,6 +652,27 @@ body {
     margin-bottom: var(--spacing-sm);
 }
 
+/* Location option in TOS */
+.location-option {
+    background-color: var(--background-color);
+    border-radius: var(--border-radius-small);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
 /* Share Modal */
 .share-content {
     text-align: center;
