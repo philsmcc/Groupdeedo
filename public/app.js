@@ -40,7 +40,7 @@ class GroupdeedoApp {
                 if (parsedSettings.displayName) {
                     this.userSettings.displayName = parsedSettings.displayName;
                 }
-                if (parsedSettings.radius && parsedSettings.radius >= 1 && parsedSettings.radius <= 500) {
+                if (parsedSettings.radius && parsedSettings.radius >= 1 && parsedSettings.radius <= 100) {
                     this.userSettings.radius = parsedSettings.radius;
                 }
                 if (parsedSettings.channel !== undefined) {

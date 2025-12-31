@@ -226,20 +226,10 @@ async function sendFilteredPosts(socket) {
                 return false;
             }
             
-            // If user has no location, show all posts in the channel
-            if (!userHasLocation) {
-                return true;
-            }
-            
-            // If post has no location (global post - stored as 0,0), show to everyone in channel
-            if (!post.latitude || !post.longitude || (post.latitude === 0 && post.longitude === 0)) {
-                return true;
-            }
-            
-            // Distance filter
+            // Distance filter - global users (0,0) will match global posts (0,0)
             const distance = calculateDistance(
-                user.latitude, user.longitude,
-                post.latitude, post.longitude
+                user.latitude || 0, user.longitude || 0,
+                post.latitude || 0, post.longitude || 0
             );
             
             return distance <= user.radius;
@@ -256,55 +246,28 @@ async function sendFilteredPosts(socket) {
 function broadcastToRelevantUsers(post) {
     console.log(`📡 Broadcasting post from channel: "${post.channel}" to ${activeUsers.size} users`);
     let matchingUsers = 0;
-    const postHasLocation = post.latitude && post.longitude;
     
     for (const [socketId, user] of activeUsers.entries()) {
-        const userHasLocation = user.latitude && user.longitude;
-        
-        console.log(`   👤 User ${user.displayName} (${socketId}) is in channel: [${user.channel}]`);
-        
         // Channel filter
         const normalizedPostChannel = normalizeChannel(post.channel);
         const normalizedUserChannel = normalizeChannel(user.channel);
         if (normalizedPostChannel !== normalizedUserChannel) {
-            console.log(`   ❌ Channel mismatch: post=[${normalizedPostChannel}] vs user=[${normalizedUserChannel}]`);
             continue;
         }
         
-        // If user has no location, they see all posts in their channel
-        if (!userHasLocation) {
-            console.log(`   ✅ Sending to ${user.displayName} (global mode)`);
-            io.to(socketId).emit('newPost', post);
-            matchingUsers++;
-            continue;
-        }
-        
-        // If post has no location (global post), send to everyone in channel
-        if (!postHasLocation || (post.latitude === 0 && post.longitude === 0) || post.isGlobal) {
-            console.log(`   ✅ Sending global post to ${user.displayName}`);
-            io.to(socketId).emit('newPost', post);
-            matchingUsers++;
-            continue;
-        }
-        
-        // Distance filter
+        // Distance filter - global users/posts use 0,0 so they match each other
         const distance = calculateDistance(
-            user.latitude, user.longitude,
-            post.latitude, post.longitude
+            user.latitude || 0, user.longitude || 0,
+            post.latitude || 0, post.longitude || 0
         );
         
-        console.log(`   📍 Distance: ${distance.toFixed(2)} miles (radius: ${user.radius})`);
-        
         if (distance <= user.radius) {
-            console.log(`   ✅ Sending post to ${user.displayName}`);
             io.to(socketId).emit('newPost', post);
             matchingUsers++;
-        } else {
-            console.log(`   ❌ Too far: ${distance.toFixed(2)} > ${user.radius} miles`);
         }
     }
     
-    console.log(`📊 Post broadcast complete: ${matchingUsers} users received the message`);
+    console.log(`📊 Post broadcast to ${matchingUsers} users`);
 }
 
 // Function to notify admin panel of events
