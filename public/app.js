@@ -341,10 +341,12 @@ class GroupdeedoApp {
         
         // Image handling
         document.getElementById('imageBtn').addEventListener('click', () => {
+            console.log('📷 Image button clicked');
             document.getElementById('imageInput').click();
         });
         
         document.getElementById('imageInput').addEventListener('change', (e) => {
+            console.log('📷 Image selected:', e.target.files[0]?.name);
             this.handleImageSelection(e);
         });
         
@@ -534,8 +536,14 @@ class GroupdeedoApp {
     // ==================== Image Handling ====================
     
     handleImageSelection(event) {
+        console.log('📷 handleImageSelection called');
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+            console.log('📷 No file selected');
+            return;
+        }
+        
+        console.log('📷 File details:', file.name, file.type, file.size);
         
         if (!file.type.startsWith('image/')) {
             this.showNotification('Please select an image file.', 'error');
@@ -555,6 +563,7 @@ class GroupdeedoApp {
     }
     
     async processImage(file) {
+        console.log('📷 processImage called for:', file.name);
         try {
             const needsCompression = file.size > 2 * 1024 * 1024;
             
@@ -564,10 +573,12 @@ class GroupdeedoApp {
                 const compressedDataUrl = await this.compressImage(file);
                 this.selectedImageData = compressedDataUrl;
             } else {
+                console.log('📷 Reading image without compression');
                 const dataUrl = await this.fileToDataUrl(file);
                 this.selectedImageData = dataUrl;
             }
             
+            console.log('📷 Image data ready, showing preview');
             const preview = document.getElementById('imagePreview');
             const img = document.getElementById('previewImg');
             img.src = this.selectedImageData;
