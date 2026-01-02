@@ -42,13 +42,60 @@
         </div>
     </div>
     
-    <!-- Main App Container -->
-    <div id="app" class="app-container" style="display: none;">
-        <!-- Header -->
+    <!-- Channel List Screen (Home) -->
+    <div id="channelListScreen" class="channel-list-screen" style="display: none;">
         <header class="app-header">
             <div class="header-content">
                 <h1 class="app-title">
                     <img src="/groupdeedo-logo.png" alt="Groupdeedo" class="header-logo">
+                </h1>
+                <button id="channelSettingsBtn" class="settings-btn" title="Settings">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+        
+        <main class="channel-list-container">
+            <div class="channel-list-header">
+                <h2>Your Channels</h2>
+                <p class="channel-list-subtitle">Tap a channel to start chatting</p>
+            </div>
+            
+            <div id="channelList" class="channel-list">
+                <!-- Channels will be added here dynamically -->
+                <div class="empty-channels-message">
+                    <p>No channels yet!</p>
+                    <p>Add a channel to get started.</p>
+                </div>
+            </div>
+            
+            <div class="add-channel-section">
+                <div class="add-channel-input-group">
+                    <input type="text" id="newChannelInput" placeholder="Enter channel name..." maxlength="50">
+                    <button id="addChannelBtn" class="btn btn-primary">+ Add</button>
+                </div>
+                <p class="add-channel-help">
+                    <small>Create a new channel or join an existing one by entering its name.</small>
+                </p>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Main App Container (Chat View) -->
+    <div id="app" class="app-container" style="display: none;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <button id="backToChannelsBtn" class="back-btn" title="Back to Channels">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <h1 class="app-title channel-title">
+                    <span id="currentChannelName">Channel</span>
                 </h1>
                 <button id="settingsBtn" class="settings-btn" title="Settings">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -79,18 +126,15 @@
                 </div>
                 
                 <div class="setting-group">
-                    <label for="channelName">Privacy Key (optional):</label>
-                    <div class="channel-input-group">
-                        <input type="text" id="channelName" placeholder="Leave empty for public chat" maxlength="50">
-                        <button id="clearChannel" class="btn btn-small btn-secondary" title="Clear Privacy Key">✕</button>
-                        <button id="shareChannel" class="btn btn-small" style="display: none;">Share</button>
-                    </div>
-                    <div class="channel-help">
-                        <small>Join others by entering an existing privacy key, or create a new one. An obscure privacy key for more privacy or a common one like "Baseball" to join others talking about baseball.</small>
-                    </div>
-                    <div class="settings-ok-button">
-                        <button id="settingsOk" class="btn btn-primary settings-ok">✓ OK</button>
-                    </div>
+                    <button id="shareChannelBtn" class="btn btn-secondary" style="width: 100%;">
+                        📤 Share This Channel
+                    </button>
+                </div>
+                
+                <div class="setting-group">
+                    <button id="leaveChannelBtn" class="btn btn-danger" style="width: 100%;">
+                        🚪 Leave Channel
+                    </button>
                 </div>
                 
                 <div class="setting-group">

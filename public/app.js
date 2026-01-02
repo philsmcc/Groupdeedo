@@ -5,11 +5,15 @@ class GroupdeedoApp {
             displayName: 'Anonymous',
             channel: ''
         };
+        this.channels = []; // List of user's channels
+        this.currentView = 'channels'; // 'channels' or 'chat'
         this.isConnected = false;
         this.hasAgreedToTos = false;
+        this.selectedImageData = null;
         
-        // Load saved user settings from localStorage
+        // Load saved data from localStorage
         this.loadUserSettings();
+        this.loadChannels();
         
         this.init();
     }
@@ -21,26 +25,18 @@ class GroupdeedoApp {
         
         // Parse URL parameters for channel sharing
         this.parseUrlParams();
-        
-        // Initialize settings UI with loaded values
-        this.initializeSettingsUI();
     }
+    
+    // ==================== Data Persistence ====================
     
     loadUserSettings() {
         try {
             const savedSettings = localStorage.getItem('groupdeedo_user_settings');
             if (savedSettings) {
                 const parsedSettings = JSON.parse(savedSettings);
-                
-                // Only restore non-location settings (location is always fresh)
                 if (parsedSettings.displayName) {
                     this.userSettings.displayName = parsedSettings.displayName;
                 }
-
-                if (parsedSettings.channel !== undefined) {
-                    this.userSettings.channel = parsedSettings.channel;
-                }
-                
                 console.log('Loaded user settings:', this.userSettings);
             }
         } catch (error) {
@@ -50,12 +46,9 @@ class GroupdeedoApp {
     
     saveUserSettings() {
         try {
-            // Only save persistent settings (not location data for privacy)
             const settingsToSave = {
-                displayName: this.userSettings.displayName,
-                channel: this.userSettings.channel
+                displayName: this.userSettings.displayName
             };
-            
             localStorage.setItem('groupdeedo_user_settings', JSON.stringify(settingsToSave));
             console.log('Saved user settings:', settingsToSave);
         } catch (error) {
@@ -63,19 +56,58 @@ class GroupdeedoApp {
         }
     }
     
-    initializeSettingsUI() {
-        // Set initial form values to match loaded settings
-        document.getElementById('displayName').value = this.userSettings.displayName;
-        document.getElementById('channelName').value = this.userSettings.channel;
-        this.toggleShareButton();
+    loadChannels() {
+        try {
+            const savedChannels = localStorage.getItem('groupdeedo_channels');
+            if (savedChannels) {
+                this.channels = JSON.parse(savedChannels);
+                console.log('Loaded channels:', this.channels);
+            }
+        } catch (error) {
+            console.warn('Failed to load channels from localStorage:', error);
+            this.channels = [];
+        }
     }
     
+    saveChannels() {
+        try {
+            localStorage.setItem('groupdeedo_channels', JSON.stringify(this.channels));
+            console.log('Saved channels:', this.channels);
+        } catch (error) {
+            console.warn('Failed to save channels to localStorage:', error);
+        }
+    }
+    
+    addChannel(channelName) {
+        const normalized = channelName.trim();
+        if (!normalized) return false;
+        
+        // Check if already exists (case-insensitive)
+        const exists = this.channels.some(c => c.toLowerCase() === normalized.toLowerCase());
+        if (exists) {
+            this.showNotification('Channel already in your list', 'info');
+            return false;
+        }
+        
+        this.channels.push(normalized);
+        this.saveChannels();
+        this.renderChannelList();
+        return true;
+    }
+    
+    removeChannel(channelName) {
+        this.channels = this.channels.filter(c => c !== channelName);
+        this.saveChannels();
+        this.renderChannelList();
+    }
+    
+    // ==================== View Management ====================
+    
     checkTosAgreement() {
-        // Check if user has already agreed to TOS
         const agreed = localStorage.getItem('groupdeedo_tos_agreed');
         if (agreed === 'true') {
             this.hasAgreedToTos = true;
-            this.showApp();
+            this.showChannelListScreen();
             this.connectSocket();
         } else {
             this.showTosModal();
@@ -91,34 +123,143 @@ class GroupdeedoApp {
         document.getElementById('tosModal').style.display = 'none';
     }
     
-    showApp() {
-        document.getElementById('app').style.display = 'flex';
+    showChannelListScreen() {
+        document.getElementById('channelListScreen').style.display = 'flex';
+        document.getElementById('app').style.display = 'none';
         document.getElementById('loadingOverlay').style.display = 'none';
         this.hideTosModal();
+        this.currentView = 'channels';
+        this.renderChannelList();
+    }
+    
+    showChatView(channelName) {
+        this.userSettings.channel = channelName;
+        document.getElementById('channelListScreen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        document.getElementById('currentChannelName').textContent = channelName;
+        this.currentView = 'chat';
+        
+        // Clear messages container
+        const container = document.getElementById('messagesContainer');
+        container.innerHTML = '<div class="welcome-message"><p>Loading messages...</p></div>';
+        
+        // Update server with new channel
+        this.updateSettings();
+    }
+    
+    renderChannelList() {
+        const container = document.getElementById('channelList');
+        
+        if (this.channels.length === 0) {
+            container.innerHTML = `
+                <div class="empty-channels-message">
+                    <p>📭 No channels yet!</p>
+                    <p>Add a channel below to get started.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = this.channels.map(channel => `
+            <div class="channel-item" data-channel="${this.escapeHtml(channel)}">
+                <div class="channel-info">
+                    <span class="channel-icon">📻</span>
+                    <span class="channel-name">${this.escapeHtml(channel)}</span>
+                </div>
+                <div class="channel-actions">
+                    <button class="channel-share-btn" title="Share">📤</button>
+                    <button class="channel-delete-btn" title="Remove">✕</button>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click handlers
+        container.querySelectorAll('.channel-item').forEach(item => {
+            const channelName = item.dataset.channel;
+            
+            // Click on channel to open
+            item.addEventListener('click', (e) => {
+                if (!e.target.closest('.channel-actions')) {
+                    this.showChatView(channelName);
+                }
+            });
+            
+            // Share button
+            item.querySelector('.channel-share-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.userSettings.channel = channelName;
+                this.showChannelShareModal();
+            });
+            
+            // Delete button
+            item.querySelector('.channel-delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Remove "${channelName}" from your channels?`)) {
+                    this.removeChannel(channelName);
+                    this.showNotification('Channel removed', 'success');
+                }
+            });
+        });
     }
     
     parseUrlParams() {
         const urlParams = new URLSearchParams(window.location.search);
         const channelParam = urlParams.get('channel');
         if (channelParam) {
-            this.userSettings.channel = channelParam;
-            // Update the channel input when app loads
-            setTimeout(() => {
-                document.getElementById('channelName').value = channelParam;
-            }, 100);
+            // Auto-add channel from URL and go directly to it
+            if (!this.channels.includes(channelParam)) {
+                this.channels.push(channelParam);
+                this.saveChannels();
+            }
+            
+            // After TOS agreement, go directly to this channel
+            this.pendingChannel = channelParam;
+            
+            // Clear URL parameter
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
+    
+    // ==================== Event Listeners ====================
     
     setupEventListeners() {
         // TOS Agreement
         document.getElementById('agreeTos').addEventListener('click', () => {
             localStorage.setItem('groupdeedo_tos_agreed', 'true');
             this.hasAgreedToTos = true;
-            this.showApp();
             this.connectSocket();
+            
+            // If there's a pending channel from URL, go directly to it
+            if (this.pendingChannel) {
+                this.showChatView(this.pendingChannel);
+                this.pendingChannel = null;
+            } else {
+                this.showChannelListScreen();
+            }
         });
         
-        // Settings
+        // Channel List Screen - Settings button
+        document.getElementById('channelSettingsBtn').addEventListener('click', () => {
+            this.openSettings();
+        });
+        
+        // Channel List Screen - Add channel
+        document.getElementById('addChannelBtn').addEventListener('click', () => {
+            this.handleAddChannel();
+        });
+        
+        document.getElementById('newChannelInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.handleAddChannel();
+            }
+        });
+        
+        // Chat View - Back button
+        document.getElementById('backToChannelsBtn').addEventListener('click', () => {
+            this.showChannelListScreen();
+        });
+        
+        // Chat View - Settings
         document.getElementById('settingsBtn').addEventListener('click', () => {
             this.openSettings();
         });
@@ -127,43 +268,27 @@ class GroupdeedoApp {
             this.closeSettings();
         });
         
-        // Settings inputs (throttled to prevent excessive updates)
-        let settingsUpdateTimeout = null;
-        
-        const throttledUpdateSettings = () => {
-            clearTimeout(settingsUpdateTimeout);
-            settingsUpdateTimeout = setTimeout(() => {
-                this.updateSettings();
-            }, 500); // Wait 500ms after user stops changing settings
-        };
-        
+        // Display name input
         document.getElementById('displayName').addEventListener('input', (e) => {
             this.userSettings.displayName = e.target.value || 'Anonymous';
-            this.saveUserSettings(); // Save immediately for better UX
-            throttledUpdateSettings();
-        });
-        
-        document.getElementById('channelName').addEventListener('input', (e) => {
-            this.userSettings.channel = e.target.value;
-            this.saveUserSettings(); // Save immediately for better UX
-            throttledUpdateSettings();
-            this.toggleShareButton();
-        });
-        
-        // Clear privacy key button
-        document.getElementById('clearChannel').addEventListener('click', () => {
-            document.getElementById('channelName').value = '';
-            this.userSettings.channel = '';
             this.saveUserSettings();
-            throttledUpdateSettings();
-            this.toggleShareButton();
-            this.showNotification('Privacy key cleared', 'success');
+            this.updateSettings();
         });
         
-        // Settings OK button
-        document.getElementById('settingsOk').addEventListener('click', () => {
-            this.closeSettings();
-            this.showNotification('Settings saved successfully', 'success');
+        // Share channel button in settings
+        document.getElementById('shareChannelBtn').addEventListener('click', () => {
+            this.showChannelShareModal();
+        });
+        
+        // Leave channel button in settings
+        document.getElementById('leaveChannelBtn').addEventListener('click', () => {
+            const channel = this.userSettings.channel;
+            if (confirm(`Leave "${channel}" and remove it from your channels?`)) {
+                this.removeChannel(channel);
+                this.closeSettings();
+                this.showChannelListScreen();
+                this.showNotification('Left channel', 'success');
+            }
         });
         
         // Message sending
@@ -195,11 +320,7 @@ class GroupdeedoApp {
             this.removeSelectedImage();
         });
         
-        // Channel sharing
-        document.getElementById('shareChannel').addEventListener('click', () => {
-            this.showChannelShareModal();
-        });
-        
+        // Share modal
         document.getElementById('closeShareModal').addEventListener('click', () => {
             this.hideChannelShareModal();
         });
@@ -208,12 +329,26 @@ class GroupdeedoApp {
             this.copyShareUrl();
         });
         
-        // Modal backdrop clicks
         document.getElementById('shareModal').addEventListener('click', (e) => {
             if (e.target.id === 'shareModal') {
                 this.hideChannelShareModal();
             }
         });
+    }
+    
+    handleAddChannel() {
+        const input = document.getElementById('newChannelInput');
+        const channelName = input.value.trim();
+        
+        if (!channelName) {
+            this.showNotification('Please enter a channel name', 'error');
+            return;
+        }
+        
+        if (this.addChannel(channelName)) {
+            input.value = '';
+            this.showNotification(`Added "${channelName}"`, 'success');
+        }
     }
     
     setupAutoResize() {
@@ -224,6 +359,8 @@ class GroupdeedoApp {
         });
     }
     
+    // ==================== Socket Connection ====================
+    
     connectSocket() {
         this.socket = io();
         
@@ -231,7 +368,7 @@ class GroupdeedoApp {
             console.log('Connected to server');
             this.isConnected = true;
             this.updateConnectionStatus('Connected', 'connected');
-            this.updateSettings(); // Send initial settings
+            this.updateSettings();
         });
         
         this.socket.on('disconnect', () => {
@@ -255,10 +392,6 @@ class GroupdeedoApp {
             this.addNewPost(post);
         });
         
-        this.socket.on('channelInfo', (info) => {
-            this.displayChannelInfo(info);
-        });
-        
         this.socket.on('error', (error) => {
             console.error('Socket error:', error);
             this.showNotification(error, 'error');
@@ -280,11 +413,13 @@ class GroupdeedoApp {
     
     updateConnectionStatus(text, className) {
         const statusEl = document.getElementById('connectionStatus');
+        if (!statusEl) return;
+        
         const indicatorEl = statusEl.querySelector('.status-indicator');
         const textEl = statusEl.querySelector('.status-text');
         
-        indicatorEl.className = `status-indicator ${className}`;
-        textEl.textContent = text;
+        if (indicatorEl) indicatorEl.className = `status-indicator ${className}`;
+        if (textEl) textEl.textContent = text;
     }
     
     updateSettings() {
@@ -293,15 +428,24 @@ class GroupdeedoApp {
         }
     }
     
+    // ==================== Settings Panel ====================
+    
     openSettings() {
         const panel = document.getElementById('settingsPanel');
         panel.classList.add('open');
-        
-        // Update form values
         document.getElementById('displayName').value = this.userSettings.displayName;
-        document.getElementById('channelName').value = this.userSettings.channel;
         
-        this.toggleShareButton();
+        // Show/hide channel-specific buttons based on current view
+        const shareBtn = document.getElementById('shareChannelBtn');
+        const leaveBtn = document.getElementById('leaveChannelBtn');
+        
+        if (this.currentView === 'chat' && this.userSettings.channel) {
+            shareBtn.style.display = 'block';
+            leaveBtn.style.display = 'block';
+        } else {
+            shareBtn.style.display = 'none';
+            leaveBtn.style.display = 'none';
+        }
     }
     
     closeSettings() {
@@ -309,11 +453,7 @@ class GroupdeedoApp {
         panel.classList.remove('open');
     }
     
-    toggleShareButton() {
-        const channelValue = document.getElementById('channelName').value;
-        const shareBtn = document.getElementById('shareChannel');
-        shareBtn.style.display = channelValue.trim() ? 'block' : 'none';
-    }
+    // ==================== Messaging ====================
     
     toggleSendButton() {
         const messageInput = document.getElementById('messageInput');
@@ -346,34 +486,31 @@ class GroupdeedoApp {
         this.toggleSendButton();
     }
     
+    // ==================== Image Handling ====================
+    
     handleImageSelection(event) {
         const file = event.target.files[0];
         if (!file) return;
         
-        // Check file type first
         if (!file.type.startsWith('image/')) {
             this.showNotification('Please select an image file.', 'error');
             return;
         }
         
-        // Check for extremely large files that might cause memory issues
-        if (file.size > 50 * 1024 * 1024) { // 50MB+
+        if (file.size > 50 * 1024 * 1024) {
             this.showNotification('Image is too large. Please select a smaller image (under 50MB).', 'error');
             return;
         }
         
-        // Show processing notification for large images
-        if (file.size > 2 * 1024 * 1024) { // 2MB+
+        if (file.size > 2 * 1024 * 1024) {
             this.showNotification('Processing large image...', 'info');
         }
         
-        // Process image with compression if needed
         this.processImage(file);
     }
     
     async processImage(file) {
         try {
-            // Check if compression is needed (file > 2MB or very large dimensions)
             const needsCompression = file.size > 2 * 1024 * 1024;
             
             if (needsCompression) {
@@ -382,12 +519,10 @@ class GroupdeedoApp {
                 const compressedDataUrl = await this.compressImage(file);
                 this.selectedImageData = compressedDataUrl;
             } else {
-                // Small images can be processed normally
                 const dataUrl = await this.fileToDataUrl(file);
                 this.selectedImageData = dataUrl;
             }
             
-            // Show preview
             const preview = document.getElementById('imagePreview');
             const img = document.getElementById('previewImg');
             img.src = this.selectedImageData;
@@ -395,22 +530,16 @@ class GroupdeedoApp {
             
             this.toggleSendButton();
             
-            // Calculate and show final size
-            const finalSize = Math.round(this.selectedImageData.length * 0.75); // Base64 is ~33% larger
-            const finalSizeMB = (finalSize / 1024 / 1024).toFixed(1);
-            console.log(`📷 Final image size: ${finalSizeMB}MB`);
-            
-            // Show success message for compressed images
             if (needsCompression) {
                 const originalSizeMB = (file.size / 1024 / 1024).toFixed(1);
+                const finalSize = Math.round(this.selectedImageData.length * 0.75);
+                const finalSizeMB = (finalSize / 1024 / 1024).toFixed(1);
                 this.showNotification(`Image ready! Compressed from ${originalSizeMB}MB to ${finalSizeMB}MB`, 'success');
             }
             
         } catch (error) {
             console.error('Error processing image:', error);
             this.showNotification('Failed to process image. Please try a different image.', 'error');
-            
-            // Reset image input
             document.getElementById('imageInput').value = '';
         }
     }
@@ -432,23 +561,16 @@ class GroupdeedoApp {
             
             img.onload = () => {
                 try {
-                    // Calculate new dimensions while maintaining aspect ratio
                     let { width, height } = img;
-                    const originalWidth = width;
-                    const originalHeight = height;
                     
-                    console.log(`📷 Original dimensions: ${width}x${height}`);
-                    
-                    // For very large images, use more aggressive scaling
                     let targetMaxWidth = maxWidth;
                     let targetMaxHeight = maxHeight;
                     
-                    if (file.size > 10 * 1024 * 1024) { // 10MB+
-                        targetMaxWidth = 1280; // More aggressive for very large files
+                    if (file.size > 10 * 1024 * 1024) {
+                        targetMaxWidth = 1280;
                         targetMaxHeight = 720;
                     }
                     
-                    // Scale down if image is too large
                     if (width > targetMaxWidth || height > targetMaxHeight) {
                         const aspectRatio = width / height;
                         
@@ -460,7 +582,6 @@ class GroupdeedoApp {
                             width = height * aspectRatio;
                         }
                         
-                        // Ensure we don't exceed the other dimension
                         if (height > targetMaxHeight) {
                             height = targetMaxHeight;
                             width = height * aspectRatio;
@@ -471,68 +592,37 @@ class GroupdeedoApp {
                         }
                     }
                     
-                    // Round dimensions to avoid fractional pixels
                     width = Math.round(width);
                     height = Math.round(height);
                     
-                    console.log(`📷 Target dimensions: ${width}x${height}`);
-                    
-                    // Set canvas size
                     canvas.width = width;
                     canvas.height = height;
                     
-                    // Improve image quality during scaling
                     ctx.imageSmoothingEnabled = true;
                     ctx.imageSmoothingQuality = 'high';
-                    
-                    // Draw and compress image
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Start with initial quality
                     let currentQuality = quality;
                     let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
                     let finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
                     
-                    console.log(`📷 First compression: ${(file.size / 1024 / 1024).toFixed(1)}MB → ~${finalSize}MB (quality: ${currentQuality})`);
-                    
-                    // If still too large, progressively reduce quality
-                    while (finalSize > 8 && currentQuality > 0.3) { // Keep under 8MB, minimum quality 0.3
+                    while (finalSize > 8 && currentQuality > 0.3) {
                         currentQuality -= 0.1;
                         dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
                         finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
-                        console.log(`📷 Further compression: ~${finalSize}MB (quality: ${currentQuality.toFixed(1)})`);
-                    }
-                    
-                    // If still too large, try smaller dimensions
-                    if (finalSize > 8) {
-                        console.log('📷 Reducing dimensions further...');
-                        const newWidth = Math.round(width * 0.8);
-                        const newHeight = Math.round(height * 0.8);
-                        
-                        canvas.width = newWidth;
-                        canvas.height = newHeight;
-                        ctx.drawImage(img, 0, 0, newWidth, newHeight);
-                        dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                        finalSize = Math.round(dataUrl.length * 0.75 / 1024 / 1024);
-                        
-                        console.log(`📷 Final dimensions: ${newWidth}x${newHeight}, size: ~${finalSize}MB`);
                     }
                     
                     resolve(dataUrl);
                     
                 } catch (error) {
-                    console.error('Error in compression process:', error);
                     reject(error);
                 }
             };
             
             img.onerror = () => reject(new Error('Failed to load image for compression'));
             
-            // Load the image
             const reader = new FileReader();
-            reader.onload = e => {
-                img.src = e.target.result;
-            };
+            reader.onload = e => { img.src = e.target.result; };
             reader.onerror = () => reject(new Error('Failed to read image file'));
             reader.readAsDataURL(file);
         });
@@ -545,37 +635,23 @@ class GroupdeedoApp {
         this.toggleSendButton();
     }
     
+    // ==================== Posts Display ====================
+    
     displayPosts(posts) {
         const container = document.getElementById('messagesContainer');
         
-        // Remove welcome message if it exists
         const welcomeMsg = container.querySelector('.welcome-message');
         if (welcomeMsg) {
             welcomeMsg.remove();
         }
         
-        // Check if posts are the same as currently displayed to avoid unnecessary updates
-        const currentPosts = container.querySelectorAll('.message');
-        if (currentPosts.length === posts.length) {
-            // Quick check if content is the same - compare timestamps of first and last posts
-            if (posts.length > 0 && currentPosts.length > 0) {
-                const firstCurrentTime = currentPosts[0].querySelector('.message-time')?.textContent;
-                const lastCurrentTime = currentPosts[currentPosts.length - 1].querySelector('.message-time')?.textContent;
-                const firstNewTime = this.getTimeAgo(new Date(posts[0].timestamp));
-                const lastNewTime = this.getTimeAgo(new Date(posts[posts.length - 1].timestamp));
-                
-                if (firstCurrentTime && lastCurrentTime && 
-                    firstCurrentTime === firstNewTime && lastCurrentTime === lastNewTime) {
-                    // Posts appear to be the same, skip update
-                    return;
-                }
-            }
-        }
-        
-        // Clear existing messages only if we need to update
         container.innerHTML = '';
         
-        // Add all posts
+        if (posts.length === 0) {
+            this.showWelcomeMessage();
+            return;
+        }
+        
         posts.forEach(post => {
             this.addPostElement(post, false);
         });
@@ -586,7 +662,6 @@ class GroupdeedoApp {
     addNewPost(post) {
         const container = document.getElementById('messagesContainer');
         
-        // Remove welcome message if it exists
         const welcomeMsg = container.querySelector('.welcome-message');
         if (welcomeMsg) {
             welcomeMsg.remove();
@@ -611,38 +686,30 @@ class GroupdeedoApp {
         let imageHtml = '';
         if (post.image) {
             imageHtml = `
-                <div class=\"message-image\">
-                    <img src=\"${post.image}\" alt=\"Shared image\" loading=\"lazy\">
+                <div class="message-image">
+                    <img src="${post.image}" alt="Shared image" loading="lazy">
                 </div>
             `;
         }
         
-        let channelInfo = '';
-        if (post.channel) {
-            channelInfo = `<span>📻 ${post.channel}</span>`;
-        }
-        
         messageEl.innerHTML = `
-            <div class=\"message-header\">
-                <span class=\"message-author\">${this.escapeHtml(post.displayName)}</span>
-                <span class=\"message-time\">${timeAgo}</span>
+            <div class="message-header">
+                <span class="message-author">${this.escapeHtml(post.displayName)}</span>
+                <span class="message-time">${timeAgo}</span>
             </div>
-            <div class=\"message-content\">${this.escapeHtml(post.message)}</div>
+            <div class="message-content">${this.escapeHtml(post.message)}</div>
             ${imageHtml}
-            ${channelInfo ? `<div class=\"message-meta\">${channelInfo}</div>` : ''}
-            <div class=\"message-votes\">
-                <button class=\"vote-btn vote-up\" data-post-id=\"${post.id}\" data-vote-type=\"up\">
-                    👍 <span class=\"vote-count upvote-count\">${post.upvotes || 0}</span>
+            <div class="message-votes">
+                <button class="vote-btn vote-up" data-post-id="${post.id}" data-vote-type="up">
+                    👍 <span class="vote-count upvote-count">${post.upvotes || 0}</span>
                 </button>
-                <button class=\"vote-btn vote-down\" data-post-id=\"${post.id}\" data-vote-type=\"down\">
-                    👎 <span class=\"vote-count downvote-count\">${post.downvotes || 0}</span>
+                <button class="vote-btn vote-down" data-post-id="${post.id}" data-vote-type="down">
+                    👎 <span class="vote-count downvote-count">${post.downvotes || 0}</span>
                 </button>
             </div>
         `;
         
         container.appendChild(messageEl);
-        
-        // Add vote button event listeners
         this.setupVoteButtons(messageEl, post.id);
     }
     
@@ -658,29 +725,24 @@ class GroupdeedoApp {
     }
     
     async handleVote(postId, voteType, buttonElement) {
-        // Prevent rapid clicking
         if (buttonElement.disabled) return;
         buttonElement.disabled = true;
         
         try {
             const response = await fetch(`/api/vote/${postId}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     voteType: voteType,
-                    sessionId: this.socket.id // Use socket ID as session ID
+                    sessionId: this.socket.id
                 })
             });
             
             const result = await response.json();
             
             if (result.success) {
-                // Update vote display
                 this.updateVoteDisplay(postId, result.voteCounts);
                 
-                // Show feedback
                 let message = '';
                 if (result.action === 'added') {
                     message = `${voteType === 'up' ? '👍' : '👎'} Vote added`;
@@ -695,7 +757,6 @@ class GroupdeedoApp {
                 }
                 
                 this.showNotification(message, result.autoDeleted ? 'info' : 'success');
-                
             } else {
                 throw new Error(result.error || 'Failed to vote');
             }
@@ -704,7 +765,6 @@ class GroupdeedoApp {
             console.error('Error voting:', error);
             this.showNotification('Failed to vote. Please try again.', 'error');
         } finally {
-            // Re-enable button after a short delay
             setTimeout(() => {
                 buttonElement.disabled = false;
             }, 1000);
@@ -723,28 +783,21 @@ class GroupdeedoApp {
     }
     
     removeMessage(messageId) {
-        console.log(`Removing message: ${messageId}`);
         const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
         if (messageEl) {
-            // Add fade-out animation before removing
             messageEl.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
             messageEl.style.opacity = '0';
             messageEl.style.transform = 'translateX(-20px)';
             
-            // Remove the element after animation
             setTimeout(() => {
                 messageEl.remove();
-                console.log(`✅ Message ${messageId} removed from chat`);
                 
-                // Check if chat is empty and show welcome message if needed
                 const container = document.getElementById('messagesContainer');
                 const remainingMessages = container.querySelectorAll('.message');
                 if (remainingMessages.length === 0) {
                     this.showWelcomeMessage();
                 }
             }, 300);
-        } else {
-            console.warn(`Message ${messageId} not found in DOM`);
         }
     }
     
@@ -753,31 +806,27 @@ class GroupdeedoApp {
         const welcomeMsg = document.createElement('div');
         welcomeMsg.className = 'welcome-message';
         welcomeMsg.innerHTML = `
-            <p>🎉 Welcome to Groupdeedo!</p>
-            <p>Chat with others in the same channel.</p>
-            <p>Tap the gear icon ⚙️ to customize your settings.</p>
+            <p>🎉 Welcome to ${this.escapeHtml(this.userSettings.channel)}!</p>
+            <p>Be the first to send a message in this channel.</p>
         `;
         container.appendChild(welcomeMsg);
     }
+    
+    // ==================== Channel Sharing ====================
     
     showChannelShareModal() {
         const channelName = this.userSettings.channel;
         if (!channelName) return;
         
-        // Generate QR code
         const baseUrl = window.location.origin;
         const shareUrl = `${baseUrl}/?channel=${encodeURIComponent(channelName)}`;
         
-        // Clear previous QR code
         const qrContainer = document.getElementById('qrCode');
         qrContainer.innerHTML = '';
         
-        // Generate new QR code (if library is available)
         if (typeof QRCode !== 'undefined') {
             try {
-                // Clear the container and create QR code
-                qrContainer.innerHTML = '';
-                const qrcode = new QRCode(qrContainer, {
+                new QRCode(qrContainer, {
                     text: shareUrl,
                     width: 200,
                     height: 200,
@@ -793,10 +842,7 @@ class GroupdeedoApp {
             qrContainer.innerHTML = '<div style="width: 200px; height: 200px; border: 2px solid #ccc; display: flex; align-items: center; justify-content: center; text-align: center; background: #f5f5f5; border-radius: 8px;"><p style="margin: 0; color: #666;">QR Code<br>Not Available</p></div>';
         }
         
-        // Set share URL
         document.getElementById('shareUrl').value = shareUrl;
-        
-        // Show modal
         document.getElementById('shareModal').style.display = 'flex';
     }
     
@@ -807,16 +853,17 @@ class GroupdeedoApp {
     copyShareUrl() {
         const urlInput = document.getElementById('shareUrl');
         urlInput.select();
-        urlInput.setSelectionRange(0, 99999); // For mobile devices
+        urlInput.setSelectionRange(0, 99999);
         
         navigator.clipboard.writeText(urlInput.value).then(() => {
             this.showNotification('Link copied!', 'success');
         }).catch(() => {
-            // Fallback for older browsers
             document.execCommand('copy');
             this.showNotification('Link copied!', 'success');
         });
     }
+    
+    // ==================== Utilities ====================
     
     scrollToBottom() {
         const container = document.getElementById('messagesContainer').parentElement;
@@ -847,12 +894,10 @@ class GroupdeedoApp {
     }
     
     showNotification(message, type = 'info') {
-        // Create notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
         notification.textContent = message;
         
-        // Add styles
         Object.assign(notification.style, {
             position: 'fixed',
             top: '20px',
@@ -868,7 +913,6 @@ class GroupdeedoApp {
             transition: 'transform 0.3s ease'
         });
         
-        // Set color based on type
         switch (type) {
             case 'success':
                 notification.style.backgroundColor = '#4CAF50';
@@ -882,12 +926,10 @@ class GroupdeedoApp {
         
         document.body.appendChild(notification);
         
-        // Animate in
         setTimeout(() => {
             notification.style.transform = 'translateX(0)';
         }, 10);
         
-        // Remove after delay
         setTimeout(() => {
             notification.style.transform = 'translateX(100%)';
             setTimeout(() => {
