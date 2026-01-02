@@ -145,6 +145,7 @@ class GroupdeedoApp {
         document.getElementById('channelListScreen').style.display = 'flex';
         document.getElementById('app').style.display = 'none';
         document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('adBanner').style.display = 'none'; // Hide ad banner
         this.hideTosModal();
         this.currentView = 'channels';
         this.renderChannelList();
@@ -178,6 +179,32 @@ class GroupdeedoApp {
         // Request posts for this channel
         console.log('📺 Calling requestChannelPosts, socket connected:', this.isConnected);
         this.requestChannelPosts();
+        
+        // Load ad for this channel
+        this.loadAdForChannel(channelName);
+    }
+    
+    async loadAdForChannel(channelName) {
+        try {
+            const response = await fetch(`/api/ads/channel/${encodeURIComponent(channelName)}`);
+            const data = await response.json();
+            
+            const adBanner = document.getElementById('adBanner');
+            const adLink = document.getElementById('adLink');
+            const adImage = document.getElementById('adImage');
+            
+            if (data.ad) {
+                adLink.href = data.ad.linkUrl;
+                adImage.src = data.ad.imageUrl;
+                adBanner.style.display = 'block';
+                console.log('📢 Ad loaded for channel:', channelName);
+            } else {
+                adBanner.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error loading ad:', error);
+            document.getElementById('adBanner').style.display = 'none';
+        }
     }
     
     renderChannelList() {

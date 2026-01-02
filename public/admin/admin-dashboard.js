@@ -30,6 +30,7 @@ class AdminDashboard {
             await this.loadSystemInfo();
             await this.updateChannels();
             await this.updateMessages();
+            await this.loadAds();
             
             console.log('✅ Initial data loaded successfully');
         } catch (error) {
@@ -485,12 +486,180 @@ class AdminDashboard {
             clearInterval(this.autoRefreshInterval);
         }
     }
+    
+    // ==================== Ads Management ====================
+    
+    async loadAds() {
+        const ads = await this.apiCall('/ads');
+        
+        if (!ads) {
+            document.getElementById('adsList').innerHTML = '<div class="no-data">Failed to load ads</div>';
+            return;
+        }
+        
+        const container = document.getElementById('adsList');
+        
+        if (ads.length === 0) {
+            container.innerHTML = '<div class="no-data">No advertisements yet. Click "+ Add Ad" to create one.</div>';
+            return;
+        }
+        
+        container.innerHTML = ads.map(ad => `
+            <div class="ad-item" data-id="${ad.id}" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #4a4d55; border-radius: 8px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 15px; flex: 1;">
+                    <img src="${this.escapeHtml(ad.imageUrl)}" alt="Ad Preview" style="width: 80px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #5a5d65;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2250%22><rect fill=%22%235a5d65%22 width=%22100%25%22 height=%22100%25%22/><text x=%2250%25%22 y=%2250%25%22 fill=%22%23888%22 font-size=%2210%22 text-anchor=%22middle%22 dy=%22.3em%22>No Image</text></svg>'">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #FF5700; padding: 2px 8px; border-radius: 10px; font-size: 12px;">📻 ${this.escapeHtml(ad.channel)}</span>
+                            <span style="background: ${ad.active ? '#28a745' : '#6c757d'}; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${ad.active ? '✓ Active' : '⏸ Inactive'}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #B0B3B8; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            🔗 ${this.escapeHtml(ad.linkUrl)}
+                        </div>
+                        <div style="font-size: 11px; color: #8A8D93; margin-top: 3px;">
+                            Created: ${new Date(ad.createdAt).toLocaleDateString()}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="dashboard.editAd(${ad.id}, '${this.escapeHtml(ad.channel)}', '${this.escapeHtml(ad.imageUrl)}', '${this.escapeHtml(ad.linkUrl)}', ${ad.active})" style="background: #17a2b8; border-color: #17a2b8; padding: 6px 12px; font-size: 12px;">✏️ Edit</button>
+                    <button onclick="dashboard.toggleAdActive(${ad.id}, ${!ad.active})" style="background: ${ad.active ? '#6c757d' : '#28a745'}; border-color: ${ad.active ? '#6c757d' : '#28a745'}; padding: 6px 12px; font-size: 12px;">${ad.active ? '⏸' : '▶️'}</button>
+                    <button onclick="dashboard.deleteAd(${ad.id})" style="background: #dc3545; border-color: #dc3545; padding: 6px 12px; font-size: 12px;">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    showAddAdForm() {
+        document.getElementById('adFormTitle').textContent = 'Add New Advertisement';
+        document.getElementById('adEditId').value = '';
+        document.getElementById('adChannel').value = '';
+        document.getElementById('adImageUrl').value = '';
+        document.getElementById('adLinkUrl').value = '';
+        document.getElementById('adForm').style.display = 'block';
+    }
+    
+    editAd(id, channel, imageUrl, linkUrl, active) {
+        document.getElementById('adFormTitle').textContent = 'Edit Advertisement';
+        document.getElementById('adEditId').value = id;
+        document.getElementById('adChannel').value = channel;
+        document.getElementById('adImageUrl').value = imageUrl;
+        document.getElementById('adLinkUrl').value = linkUrl;
+        document.getElementById('adForm').style.display = 'block';
+    }
+    
+    hideAdForm() {
+        document.getElementById('adForm').style.display = 'none';
+        document.getElementById('adEditId').value = '';
+        document.getElementById('adChannel').value = '';
+        document.getElementById('adImageUrl').value = '';
+        document.getElementById('adLinkUrl').value = '';
+    }
+    
+    async saveAd() {
+        const id = document.getElementById('adEditId').value;
+        const channel = document.getElementById('adChannel').value.trim();
+        const imageUrl = document.getElementById('adImageUrl').value.trim();
+        const linkUrl = document.getElementById('adLinkUrl').value.trim();
+        
+        if (!channel || !imageUrl || !linkUrl) {
+            this.showNotification('Please fill in all fields', 'error');
+            return;
+        }
+        
+        try {
+            let result;
+            
+            if (id) {
+                // Update existing ad
+                result = await this.apiCall(`/ads/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ channel, imageUrl, linkUrl, active: true })
+                });
+            } else {
+                // Create new ad
+                result = await this.apiCall('/ads', {
+                    method: 'POST',
+                    body: JSON.stringify({ channel, imageUrl, linkUrl })
+                });
+            }
+            
+            if (result && result.success) {
+                this.showNotification(id ? 'Ad updated successfully' : 'Ad created successfully', 'success');
+                this.hideAdForm();
+                await this.loadAds();
+            } else {
+                throw new Error(result?.error || 'Failed to save ad');
+            }
+        } catch (error) {
+            console.error('Error saving ad:', error);
+            this.showNotification('Failed to save ad', 'error');
+        }
+    }
+    
+    async toggleAdActive(id, active) {
+        try {
+            // First get the current ad data
+            const ads = await this.apiCall('/ads');
+            const ad = ads?.find(a => a.id === id);
+            
+            if (!ad) {
+                this.showNotification('Ad not found', 'error');
+                return;
+            }
+            
+            const result = await this.apiCall(`/ads/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    channel: ad.channel,
+                    imageUrl: ad.imageUrl,
+                    linkUrl: ad.linkUrl,
+                    active: active
+                })
+            });
+            
+            if (result && result.success) {
+                this.showNotification(active ? 'Ad activated' : 'Ad deactivated', 'success');
+                await this.loadAds();
+            } else {
+                throw new Error('Failed to update ad status');
+            }
+        } catch (error) {
+            console.error('Error toggling ad:', error);
+            this.showNotification('Failed to update ad', 'error');
+        }
+    }
+    
+    async deleteAd(id) {
+        if (!confirm('Are you sure you want to delete this advertisement?')) {
+            return;
+        }
+        
+        try {
+            const result = await this.apiCall(`/ads/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (result && result.success) {
+                this.showNotification('Ad deleted successfully', 'success');
+                await this.loadAds();
+            } else {
+                throw new Error('Failed to delete ad');
+            }
+        } catch (error) {
+            console.error('Error deleting ad:', error);
+            this.showNotification('Failed to delete ad', 'error');
+        }
+    }
 }
 
 // Global functions for HTML event handlers
 window.updateChannels = () => dashboard.updateChannels();
 window.updateMessages = () => dashboard.updateMessages();
 window.logout = () => dashboard.logout();
+window.showAddAdForm = () => dashboard.showAddAdForm();
+window.hideAdForm = () => dashboard.hideAdForm();
+window.saveAd = () => dashboard.saveAd();
 
 // Initialize dashboard
 let dashboard;

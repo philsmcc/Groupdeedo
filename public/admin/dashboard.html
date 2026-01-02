@@ -506,6 +506,42 @@
             </div>
         </div>
 
+        <!-- Ads Management -->
+        <div class="card">
+            <div class="card-header">
+                📢 Advertisements
+                <button onclick="showAddAdForm()" style="padding: 4px 12px; font-size: 12px;">+ Add Ad</button>
+            </div>
+            <div class="card-body">
+                <!-- Add/Edit Ad Form (hidden by default) -->
+                <div id="adForm" style="display: none; margin-bottom: 20px; padding: 15px; background: #4a4d55; border-radius: 8px;">
+                    <h4 style="margin-bottom: 15px;" id="adFormTitle">Add New Advertisement</h4>
+                    <input type="hidden" id="adEditId">
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Channel Name:</label>
+                        <input type="text" id="adChannel" placeholder="e.g., baseball" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Image URL:</label>
+                        <input type="text" id="adImageUrl" placeholder="https://example.com/ad-image.jpg" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Link URL:</label>
+                        <input type="text" id="adLinkUrl" placeholder="https://example.com/landing-page" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="saveAd()" style="flex: 1;">Save Ad</button>
+                        <button onclick="hideAdForm()" style="flex: 1; background: #6c757d; border-color: #6c757d;">Cancel</button>
+                    </div>
+                </div>
+                
+                <!-- Ads List -->
+                <div id="adsList">
+                    <div class="loading">Loading ads...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- System Info -->
         <div class="card">
             <div class="card-header">

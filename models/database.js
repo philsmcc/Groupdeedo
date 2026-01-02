@@ -61,6 +61,18 @@ class Database {
                 )
             `;
             
+            // Create ads table
+            const createAdsTable = `
+                CREATE TABLE IF NOT EXISTS ads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    channel TEXT NOT NULL,
+                    image_url TEXT NOT NULL,
+                    link_url TEXT NOT NULL,
+                    active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `;
+            
             const createIndexes = [
                 'CREATE INDEX IF NOT EXISTS idx_posts_timestamp ON posts(timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_posts_channel ON posts(channel)',
@@ -84,6 +96,14 @@ class Database {
                 this.db.run(createVotesTable, (err) => {
                     if (err) {
                         console.error('Error creating votes table:', err);
+                        reject(err);
+                        return;
+                    }
+                });
+                
+                this.db.run(createAdsTable, (err) => {
+                    if (err) {
+                        console.error('Error creating ads table:', err);
                         reject(err);
                         return;
                     }
@@ -716,6 +736,126 @@ class Database {
                     }));
                     
                     resolve(posts);
+                }
+            });
+        });
+    }
+
+    // ==================== Ad Management ====================
+    
+    createAd(ad) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                INSERT INTO ads (channel, image_url, link_url, active)
+                VALUES (?, ?, ?, ?)
+            `;
+            
+            this.db.run(query, [
+                ad.channel.toLowerCase(),
+                ad.imageUrl,
+                ad.linkUrl,
+                ad.active ? 1 : 0
+            ], function(err) {
+                if (err) {
+                    console.error('Error creating ad:', err);
+                    reject(err);
+                } else {
+                    resolve({ id: this.lastID, ...ad });
+                }
+            });
+        });
+    }
+    
+    getAdForChannel(channel) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT * FROM ads 
+                WHERE channel = ? AND active = 1
+                ORDER BY created_at DESC
+                LIMIT 1
+            `;
+            
+            this.db.get(query, [channel.toLowerCase()], (err, row) => {
+                if (err) {
+                    console.error('Error fetching ad:', err);
+                    reject(err);
+                } else if (row) {
+                    resolve({
+                        id: row.id,
+                        channel: row.channel,
+                        imageUrl: row.image_url,
+                        linkUrl: row.link_url,
+                        active: row.active === 1,
+                        createdAt: row.created_at
+                    });
+                } else {
+                    resolve(null);
+                }
+            });
+        });
+    }
+    
+    getAllAds() {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT * FROM ads 
+                ORDER BY created_at DESC
+            `;
+            
+            this.db.all(query, [], (err, rows) => {
+                if (err) {
+                    console.error('Error fetching all ads:', err);
+                    reject(err);
+                } else {
+                    const ads = rows.map(row => ({
+                        id: row.id,
+                        channel: row.channel,
+                        imageUrl: row.image_url,
+                        linkUrl: row.link_url,
+                        active: row.active === 1,
+                        createdAt: row.created_at
+                    }));
+                    resolve(ads);
+                }
+            });
+        });
+    }
+    
+    updateAd(id, ad) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                UPDATE ads 
+                SET channel = ?, image_url = ?, link_url = ?, active = ?
+                WHERE id = ?
+            `;
+            
+            this.db.run(query, [
+                ad.channel.toLowerCase(),
+                ad.imageUrl,
+                ad.linkUrl,
+                ad.active ? 1 : 0,
+                id
+            ], function(err) {
+                if (err) {
+                    console.error('Error updating ad:', err);
+                    reject(err);
+                } else {
+                    resolve({ changes: this.changes });
+                }
+            });
+        });
+    }
+    
+    deleteAd(id) {
+        return new Promise((resolve, reject) => {
+            const query = 'DELETE FROM ads WHERE id = ?';
+            
+            this.db.run(query, [id], function(err) {
+                if (err) {
+                    console.error('Error deleting ad:', err);
+                    reject(err);
+                } else {
+                    resolve({ deleted: this.changes > 0 });
                 }
             });
         });

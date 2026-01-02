@@ -657,6 +657,90 @@ app.get('/api/channel/:channelName', (req, res) => {
     });
 });
 
+// ==================== Ad Management API ====================
+
+// Public endpoint - get ad for a channel
+app.get('/api/ads/channel/:channelName', async (req, res) => {
+    try {
+        const channelName = req.params.channelName.toLowerCase();
+        const ad = await db.getAdForChannel(channelName);
+        res.json({ ad: ad || null });
+    } catch (error) {
+        console.error('Error fetching ad for channel:', error);
+        res.status(500).json({ error: 'Failed to fetch ad' });
+    }
+});
+
+// Admin - get all ads
+app.get('/api/admin/ads', requireAdminAuth, async (req, res) => {
+    try {
+        const ads = await db.getAllAds();
+        res.json(ads);
+    } catch (error) {
+        console.error('Error fetching ads:', error);
+        res.status(500).json({ error: 'Failed to fetch ads' });
+    }
+});
+
+// Admin - create ad
+app.post('/api/admin/ads', requireAdminAuth, async (req, res) => {
+    try {
+        const { channel, imageUrl, linkUrl } = req.body;
+        
+        if (!channel || !imageUrl || !linkUrl) {
+            return res.status(400).json({ error: 'Missing required fields: channel, imageUrl, linkUrl' });
+        }
+        
+        const ad = await db.createAd({
+            channel: channel.trim(),
+            imageUrl: imageUrl.trim(),
+            linkUrl: linkUrl.trim(),
+            active: true
+        });
+        
+        console.log(`📢 Ad created for channel: ${channel}`);
+        res.json({ success: true, ad });
+    } catch (error) {
+        console.error('Error creating ad:', error);
+        res.status(500).json({ error: 'Failed to create ad' });
+    }
+});
+
+// Admin - update ad
+app.put('/api/admin/ads/:id', requireAdminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { channel, imageUrl, linkUrl, active } = req.body;
+        
+        const result = await db.updateAd(id, {
+            channel: channel.trim(),
+            imageUrl: imageUrl.trim(),
+            linkUrl: linkUrl.trim(),
+            active: active
+        });
+        
+        console.log(`📢 Ad ${id} updated`);
+        res.json({ success: true, changes: result.changes });
+    } catch (error) {
+        console.error('Error updating ad:', error);
+        res.status(500).json({ error: 'Failed to update ad' });
+    }
+});
+
+// Admin - delete ad
+app.delete('/api/admin/ads/:id', requireAdminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.deleteAd(id);
+        
+        console.log(`📢 Ad ${id} deleted`);
+        res.json({ success: true, deleted: result.deleted });
+    } catch (error) {
+        console.error('Error deleting ad:', error);
+        res.status(500).json({ error: 'Failed to delete ad' });
+    }
+});
+
 // Serve the main app
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
