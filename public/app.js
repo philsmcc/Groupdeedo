@@ -451,7 +451,14 @@ class GroupdeedoApp {
             console.log('Connected to server');
             this.isConnected = true;
             this.updateConnectionStatus('Connected', 'connected');
-            this.updateSettings();
+            
+            // If we're already in a chat view, request posts for that channel
+            if (this.currentView === 'chat' && this.userSettings.channel) {
+                console.log('📡 Connected while in chat view, requesting posts for:', this.userSettings.channel);
+                this.requestChannelPosts();
+            } else {
+                this.updateSettings();
+            }
         });
         
         this.socket.on('disconnect', () => {
@@ -464,7 +471,14 @@ class GroupdeedoApp {
             console.log('Reconnected to server');
             this.isConnected = true;
             this.updateConnectionStatus('Connected', 'connected');
-            this.updateSettings();
+            
+            // If we're in a chat view, request posts again
+            if (this.currentView === 'chat' && this.userSettings.channel) {
+                console.log('📡 Reconnected while in chat view, requesting posts for:', this.userSettings.channel);
+                this.requestChannelPosts();
+            } else {
+                this.updateSettings();
+            }
         });
         
         this.socket.on('posts', (posts) => {
@@ -512,13 +526,14 @@ class GroupdeedoApp {
     }
     
     requestChannelPosts() {
+        console.log('📡 requestChannelPosts called, connected:', this.isConnected, 'channel:', this.userSettings.channel);
+        
         if (this.socket && this.isConnected) {
             console.log('📡 Requesting posts for channel:', this.userSettings.channel);
             this.socket.emit('requestPosts', { channel: this.userSettings.channel });
         } else {
-            console.log('📡 Not connected, will request posts when connected');
-            // Update settings will trigger posts when we reconnect
-            this.updateSettings();
+            console.log('📡 Not connected yet, posts will be requested when socket connects');
+            // Posts will be requested when socket connects (see connect handler)
         }
     }
     
