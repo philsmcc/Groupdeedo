@@ -84,11 +84,12 @@ class GroupdeedoApp {
     }
     
     addChannel(channelName) {
-        const normalized = channelName.trim();
+        // Normalize to lowercase for case-insensitive channels
+        const normalized = channelName.trim().toLowerCase();
         if (!normalized) return false;
         
-        // Check if already exists (case-insensitive)
-        const exists = this.channels.some(c => c.toLowerCase() === normalized.toLowerCase());
+        // Check if already exists
+        const exists = this.channels.some(c => c === normalized);
         if (exists) {
             this.showNotification('Channel already in your list', 'info');
             return false;
@@ -101,7 +102,8 @@ class GroupdeedoApp {
     }
     
     removeChannel(channelName) {
-        this.channels = this.channels.filter(c => c !== channelName);
+        const normalized = channelName.toLowerCase();
+        this.channels = this.channels.filter(c => c.toLowerCase() !== normalized);
         this.saveChannels();
         this.renderChannelList();
     }
@@ -237,20 +239,22 @@ class GroupdeedoApp {
         const urlParams = new URLSearchParams(window.location.search);
         const channelParam = urlParams.get('channel');
         if (channelParam) {
-            console.log('📎 Channel from URL:', channelParam);
+            // Normalize to lowercase for case-insensitive channels
+            const normalizedChannel = channelParam.trim().toLowerCase();
+            console.log('📎 Channel from URL:', channelParam, '-> normalized:', normalizedChannel);
             
             // Auto-add channel from URL
-            if (!this.channels.some(c => c.toLowerCase() === channelParam.toLowerCase())) {
-                this.channels.push(channelParam);
+            if (!this.channels.some(c => c === normalizedChannel)) {
+                this.channels.push(normalizedChannel);
                 this.saveChannels();
-                console.log('📎 Added channel to list:', channelParam);
+                console.log('📎 Added channel to list:', normalizedChannel);
             }
             
             // Set as pending channel to open after TOS/init
-            this.pendingChannel = channelParam;
+            this.pendingChannel = normalizedChannel;
             
             // Replace URL state (don't clear the URL yet - we'll set it properly when showing chat)
-            window.history.replaceState({ view: 'chat', channel: channelParam }, '', window.location.href);
+            window.history.replaceState({ view: 'chat', channel: normalizedChannel }, '', window.location.href);
         } else {
             // No channel param - set initial state
             window.history.replaceState({ view: 'channels' }, '', '/');

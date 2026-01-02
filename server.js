@@ -133,7 +133,8 @@ function sanitizeDisplayName(name) {
 function sanitizeChannel(channel) {
     if (!channel || typeof channel !== 'string') return '';
     // Allow alphanumeric, spaces, hyphens, underscores - limit length
-    return channel.trim().slice(0, 100).replace(/[^a-zA-Z0-9\s\-_]/g, '');
+    // Convert to lowercase for case-insensitive matching
+    return channel.trim().slice(0, 100).replace(/[^a-zA-Z0-9\s\-_]/g, '').toLowerCase();
 }
 
 // Validate image data URL
@@ -315,7 +316,8 @@ function normalizeChannel(channel) {
     if (channel === null || channel === undefined) {
         return '';
     }
-    return String(channel).trim();
+    // Convert to lowercase for case-insensitive matching
+    return String(channel).trim().toLowerCase();
 }
 
 // Function to send filtered posts to a specific user
