@@ -58,6 +58,32 @@
             </div>
         </header>
         
+        <!-- Main Settings Panel (for channel list screen) -->
+        <div id="mainSettingsPanel" class="settings-panel">
+            <div class="settings-content">
+                <div class="settings-header">
+                    <h3>Settings</h3>
+                    <button id="closeMainSettings" class="close-btn">✕</button>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="mainDisplayName">Posting as:</label>
+                    <input type="text" id="mainDisplayName" placeholder="Anonymous" maxlength="20">
+                    <small class="setting-help">This name will be used in all your channels.</small>
+                </div>
+                
+                <div class="setting-group">
+                    <button id="mainInstallAppBtn" class="btn btn-primary" style="display: none; width: 100%;">
+                        📱 Install App
+                    </button>
+                </div>
+                
+                <div class="setting-group settings-ok-container">
+                    <button id="mainSettingsOk" class="btn btn-primary settings-ok">✓ OK</button>
+                </div>
+            </div>
+        </div>
+        
         <main class="channel-list-container">
             <div class="channel-list-header">
                 <h2>Your Channels</h2>
@@ -78,7 +104,7 @@
                     <button id="addChannelBtn" class="btn btn-primary">+ Add</button>
                 </div>
                 <p class="add-channel-help">
-                    <small>Create a new channel or join an existing one by entering its name.</small>
+                    <small>Create or join a channel by entering its name. Use obscure names for private chats, or generic names like "CES" or "Baseball" to chat with more people.</small>
                 </p>
             </div>
         </main>
@@ -141,6 +167,10 @@
                     <button id="installAppBtn" class="btn btn-primary" style="display: none; width: 100%;">
                         📱 Install App
                     </button>
+                </div>
+                
+                <div class="setting-group settings-ok-container">
+                    <button id="settingsOk" class="btn btn-primary settings-ok">✓ OK</button>
                 </div>
             </div>
         </div>
@@ -248,40 +278,43 @@
             e.preventDefault();
             // Stash the event so it can be triggered later
             deferredPrompt = e;
-            // Show the install button in settings
+            // Show the install buttons in both settings panels
             const installBtn = document.getElementById('installAppBtn');
-            if (installBtn) {
-                installBtn.style.display = 'block';
-            }
+            const mainInstallBtn = document.getElementById('mainInstallAppBtn');
+            if (installBtn) installBtn.style.display = 'block';
+            if (mainInstallBtn) mainInstallBtn.style.display = 'block';
         });
         
         // Handle install button click
         document.addEventListener('DOMContentLoaded', function() {
-            const installBtn = document.getElementById('installAppBtn');
-            if (installBtn) {
-                installBtn.addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        // Show the install prompt
-                        deferredPrompt.prompt();
-                        // Wait for the user to respond to the prompt
-                        const { outcome } = await deferredPrompt.userChoice;
-                        console.log(`User response to the install prompt: ${outcome}`);
-                        // Clear the deferredPrompt
-                        deferredPrompt = null;
-                        // Hide the install button
-                        installBtn.style.display = 'none';
-                    }
-                });
-            }
+            const installButtons = [
+                document.getElementById('installAppBtn'),
+                document.getElementById('mainInstallAppBtn')
+            ];
+            
+            installButtons.forEach(btn => {
+                if (btn) {
+                    btn.addEventListener('click', async () => {
+                        if (deferredPrompt) {
+                            deferredPrompt.prompt();
+                            const { outcome } = await deferredPrompt.userChoice;
+                            console.log(`User response to the install prompt: ${outcome}`);
+                            deferredPrompt = null;
+                            // Hide all install buttons
+                            installButtons.forEach(b => { if (b) b.style.display = 'none'; });
+                        }
+                    });
+                }
+            });
         });
         
         // Hide install button if app is already installed
         window.addEventListener('appinstalled', () => {
             console.log('PWA was installed');
             const installBtn = document.getElementById('installAppBtn');
-            if (installBtn) {
-                installBtn.style.display = 'none';
-            }
+            const mainInstallBtn = document.getElementById('mainInstallAppBtn');
+            if (installBtn) installBtn.style.display = 'none';
+            if (mainInstallBtn) mainInstallBtn.style.display = 'none';
             deferredPrompt = null;
         });
     </script>

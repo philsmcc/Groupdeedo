@@ -238,9 +238,30 @@ class GroupdeedoApp {
             }
         });
         
-        // Channel List Screen - Settings button
+        // Channel List Screen - Settings button (opens main settings)
         document.getElementById('channelSettingsBtn').addEventListener('click', () => {
-            this.openSettings();
+            this.openMainSettings();
+        });
+        
+        // Main Settings Panel (channel list screen)
+        document.getElementById('closeMainSettings').addEventListener('click', () => {
+            this.closeMainSettings();
+        });
+        
+        document.getElementById('mainDisplayName').addEventListener('input', (e) => {
+            this.userSettings.displayName = e.target.value || 'Anonymous';
+            this.saveUserSettings();
+            // Also update the chat settings display name if it exists
+            const chatDisplayName = document.getElementById('displayName');
+            if (chatDisplayName) {
+                chatDisplayName.value = this.userSettings.displayName;
+            }
+            this.updateSettings();
+        });
+        
+        document.getElementById('mainSettingsOk').addEventListener('click', () => {
+            this.closeMainSettings();
+            this.showNotification('Settings saved', 'success');
         });
         
         // Channel List Screen - Add channel
@@ -268,11 +289,22 @@ class GroupdeedoApp {
             this.closeSettings();
         });
         
-        // Display name input
+        // Display name input (chat settings)
         document.getElementById('displayName').addEventListener('input', (e) => {
             this.userSettings.displayName = e.target.value || 'Anonymous';
             this.saveUserSettings();
+            // Also update the main settings display name
+            const mainDisplayName = document.getElementById('mainDisplayName');
+            if (mainDisplayName) {
+                mainDisplayName.value = this.userSettings.displayName;
+            }
             this.updateSettings();
+        });
+        
+        // Settings OK button (chat settings)
+        document.getElementById('settingsOk').addEventListener('click', () => {
+            this.closeSettings();
+            this.showNotification('Settings saved', 'success');
         });
         
         // Share channel button in settings
@@ -430,6 +462,19 @@ class GroupdeedoApp {
     
     // ==================== Settings Panel ====================
     
+    // Main settings panel (on channel list screen)
+    openMainSettings() {
+        const panel = document.getElementById('mainSettingsPanel');
+        panel.classList.add('open');
+        document.getElementById('mainDisplayName').value = this.userSettings.displayName;
+    }
+    
+    closeMainSettings() {
+        const panel = document.getElementById('mainSettingsPanel');
+        panel.classList.remove('open');
+    }
+    
+    // Chat settings panel (in chat view)
     openSettings() {
         const panel = document.getElementById('settingsPanel');
         panel.classList.add('open');

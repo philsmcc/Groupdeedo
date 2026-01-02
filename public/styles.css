@@ -453,9 +453,22 @@ body {
     line-height: 1.4;
 }
 
+/* Settings Help Text */
+.setting-help {
+    display: block;
+    margin-top: var(--spacing-sm);
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
 /* Settings OK Button */
 .settings-ok-button {
     margin-top: var(--spacing-md);
+    text-align: center;
+}
+
+.settings-ok-container {
+    margin-top: var(--spacing-lg);
     text-align: center;
 }
 
