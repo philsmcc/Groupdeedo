@@ -143,8 +143,8 @@ class GroupdeedoApp {
         const container = document.getElementById('messagesContainer');
         container.innerHTML = '<div class="welcome-message"><p>Loading messages...</p></div>';
         
-        // Update server with new channel
-        this.updateSettings();
+        // Request posts for this channel
+        this.requestChannelPosts();
     }
     
     renderChannelList() {
@@ -459,6 +459,17 @@ class GroupdeedoApp {
     updateSettings() {
         if (this.socket && this.isConnected) {
             this.socket.emit('updateSettings', this.userSettings);
+        }
+    }
+    
+    requestChannelPosts() {
+        if (this.socket && this.isConnected) {
+            console.log('📡 Requesting posts for channel:', this.userSettings.channel);
+            this.socket.emit('requestPosts', { channel: this.userSettings.channel });
+        } else {
+            console.log('📡 Not connected, will request posts when connected');
+            // Update settings will trigger posts when we reconnect
+            this.updateSettings();
         }
     }
     

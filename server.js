@@ -127,6 +127,20 @@ io.on('connection', (socket) => {
         }
     });
     
+    // Handle explicit request for posts (when user enters a channel view)
+    socket.on('requestPosts', (data) => {
+        const user = activeUsers.get(socket.id);
+        if (user) {
+            // Update channel if provided
+            if (data && data.channel !== undefined) {
+                user.channel = normalizeChannel(data.channel);
+                activeUsers.set(socket.id, user);
+            }
+            console.log(`📥 User ${user.displayName} (${socket.id}) requested posts for channel: [${user.channel}]`);
+            sendFilteredPosts(socket);
+        }
+    });
+    
     // Handle new message
     socket.on('sendMessage', async (messageData) => {
         const user = activeUsers.get(socket.id);
