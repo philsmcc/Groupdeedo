@@ -1,10 +1,10 @@
 class AdminDashboard {
     constructor() {
         console.log('🔧 AdminDashboard constructor called');
-        this.map = null;
-        this.markers = [];
         this.stats = {};
         this.messages = [];
+        this.channels = [];
+        this.selectedChannel = 'all';
         this.autoRefreshInterval = null;
         
         this.init();
@@ -23,35 +23,29 @@ class AdminDashboard {
             return;
         }
         
-        // Initialize map
-        console.log('🗺️ Initializing map...');
-        this.initMap();
-        
         // Load initial data
         console.log('📊 Loading initial data...');
         try {
-            console.log('📊 Step 1: Loading stats');
             await this.loadStats();
-            console.log('📊 Step 2: Loading map');
-            await this.updateMap();
-            console.log('📊 Step 3: Loading messages');
+            await this.loadSystemInfo();
+            await this.updateChannels();
             await this.updateMessages();
             
             console.log('✅ Initial data loaded successfully');
         } catch (error) {
             console.error('❌ Failed to load initial data:', error);
-            console.error('❌ Error stack:', error.stack);
         }
         
         // Set up auto-refresh every 30 seconds
         this.autoRefreshInterval = setInterval(() => {
             console.log('🔄 Auto-refreshing data...');
             this.loadStats();
-            this.updateMap();
+            this.loadSystemInfo();
+            this.updateChannels();
             this.updateMessages();
         }, 30000);
         
-        // Update last updated timestamp
+        // Update timestamp
         this.updateTimestamp();
         setInterval(() => this.updateTimestamp(), 1000);
         
@@ -88,12 +82,11 @@ class AdminDashboard {
                 'Content-Type': 'application/json',
                 'X-Admin-Token': token
             },
-            credentials: 'include', // Ensure cookies are sent
+            credentials: 'include',
             ...options
         };
         
         try {
-            console.log(`Making API call: /api/admin${endpoint}`);
             const response = await fetch(`/api/admin${endpoint}`, config);
             
             if (response.status === 401) {
@@ -103,51 +96,24 @@ class AdminDashboard {
             }
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`API Error ${response.status}:`, errorText);
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            const result = await response.json();
-            console.log(`API call successful: /api/admin${endpoint}`, result);
-            return result;
+            return await response.json();
         } catch (error) {
             console.error(`API call failed: ${endpoint}`, error);
             return null;
         }
     }
     
-    initMap() {
-        // Initialize Leaflet map with proper zoom behavior
-        this.map = L.map('map', {
-            scrollWheelZoom: 'center', // Prevents marker drift during wheel zoom
-            zoomAnimation: true,
-            markerZoomAnimation: true
-        }).setView([39.8283, -98.5795], 4); // Center of USA
-        
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 18
-        }).addTo(this.map);
-        
-        console.log('🗺️ Map initialized with proper zoom behavior');
-    }
-    
     async loadStats() {
-        console.log('📊 Loading stats...');
         const stats = await this.apiCall('/stats');
-        console.log('📊 Stats received:', stats);
         
-        if (!stats) {
-            console.log('❌ No stats returned from API');
-            return;
-        }
+        if (!stats) return;
         
         this.stats = stats;
         
-        // Update stat cards with debugging
-        console.log('📊 Updating stat cards...');
+        // Update stat cards
         const elements = {
             totalPosts: document.getElementById('totalPosts'),
             postsLastHour: document.getElementById('postsLastHour'), 
@@ -157,119 +123,136 @@ class AdminDashboard {
             postsWithImages: document.getElementById('postsWithImages')
         };
         
-        // Check if elements exist
         for (const [key, element] of Object.entries(elements)) {
-            if (!element) {
-                console.error(`❌ Element not found: ${key}`);
-            } else {
-                const value = stats[key] || '0';
-                console.log(`📊 Setting ${key} to ${value}`);
-                element.textContent = value;
+            if (element) {
+                element.textContent = stats[key] || '0';
             }
         }
-        
-        console.log('📊 Stats update complete');
     }
     
-    async updateMap() {
-        const timeFilter = document.getElementById('mapTimeFilter').value;
+    async loadSystemInfo() {
+        const systemInfo = await this.apiCall('/system');
+        
+        if (!systemInfo) return;
+        
+        // Update system stats
+        const uptimeEl = document.getElementById('serverUptime');
+        const connectionsEl = document.getElementById('activeConnections');
+        const memoryEl = document.getElementById('memoryUsage');
+        const nodeEl = document.getElementById('nodeVersion');
+        
+        if (uptimeEl) {
+            uptimeEl.textContent = this.formatUptime(systemInfo.server?.uptime || 0);
+        }
+        
+        if (connectionsEl) {
+            connectionsEl.textContent = systemInfo.application?.activeUsers || 0;
+        }
+        
+        if (memoryEl) {
+            const memMB = Math.round((systemInfo.server?.memory?.heapUsed || 0) / 1024 / 1024);
+            memoryEl.textContent = memMB;
+        }
+        
+        if (nodeEl) {
+            nodeEl.textContent = systemInfo.server?.nodeVersion || '--';
+        }
+    }
+    
+    formatUptime(seconds) {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        
+        if (days > 0) return `${days}d ${hours}h`;
+        if (hours > 0) return `${hours}h ${mins}m`;
+        return `${mins}m`;
+    }
+    
+    async updateChannels() {
+        const timeFilter = document.getElementById('messageTimeFilter')?.value || 'day';
         const posts = await this.apiCall(`/posts?filter=${timeFilter}&limit=1000`);
         
         if (!posts) return;
         
-        // Clear existing markers
-        this.markers.forEach(marker => this.map.removeLayer(marker));
-        this.markers = [];
+        // Count messages per channel
+        const channelCounts = {};
+        const channelImages = {};
         
-        // Add new markers with proper iconAnchor to prevent drift
         posts.forEach(post => {
-            if (post.latitude && post.longitude) {
-                // Create custom colored icon with proper anchor point
-                const markerColor = this.getChannelColor(post.channel);
-                const customIcon = L.divIcon({
-                    className: 'custom-map-marker',
-                    html: `<div style="
-                        width: 16px;
-                        height: 16px;
-                        background-color: ${markerColor};
-                        border: 2px solid white;
-                        border-radius: 50%;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    "></div>`,
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8], // Center the marker properly - this prevents drift!
-                    popupAnchor: [0, -8]
-                });
-                
-                const marker = L.marker([post.latitude, post.longitude], {
-                    icon: customIcon
-                });
-                
-                // Create popup content
-                const popupContent = `
-                    <div style="min-width: 200px; max-width: 300px;">
-                        <strong>${this.escapeHtml(post.displayName)}</strong>
-                        ${post.channel ? `<span class="channel-tag">${this.escapeHtml(post.channel)}</span>` : ''}
-                        <br><small>${new Date(post.createdAt).toLocaleString()}</small>
-                        <hr style="margin: 5px 0;">
-                        <div style="max-width: 250px; word-wrap: break-word; margin-bottom: 8px;">
-                            ${this.escapeHtml(post.message)}
-                        </div>
-                        ${post.image ? `
-                            <div style="margin-top: 8px;">
-                                <img 
-                                    src="${post.image}" 
-                                    alt="Message image"
-                                    style="
-                                        max-width: 150px;
-                                        max-height: 100px;
-                                        border-radius: 6px;
-                                        cursor: pointer;
-                                        object-fit: cover;
-                                        border: 1px solid #ddd;
-                                    "
-                                    onclick="dashboard.showImageModal('${post.image}', '${this.escapeHtml(post.displayName)}', '${this.escapeHtml(post.message)}')"
-                                />
-                                <div style="font-size: 10px; color: #666; text-align: center; margin-top: 2px;">
-                                    Click to view full size
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-                
-                marker.bindPopup(popupContent);
-                marker.addTo(this.map);
-                this.markers.push(marker);
+            const channel = post.channel || 'Public';
+            channelCounts[channel] = (channelCounts[channel] || 0) + 1;
+            if (post.image) {
+                channelImages[channel] = (channelImages[channel] || 0) + 1;
             }
         });
         
-        // Auto-fit bounds if there are markers
-        if (this.markers.length > 0) {
-            const group = new L.featureGroup(this.markers);
-            this.map.fitBounds(group.getBounds().pad(0.1));
+        // Sort by message count
+        this.channels = Object.entries(channelCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({
+                name,
+                messageCount: count,
+                imageCount: channelImages[name] || 0
+            }));
+        
+        // Render channel list
+        const container = document.getElementById('channelList');
+        
+        if (this.channels.length === 0) {
+            container.innerHTML = '<div class="no-data">No channels found</div>';
+            return;
         }
         
-        console.log(`🗺️ Map updated with ${this.markers.length} markers`);
+        container.innerHTML = this.channels.map(channel => `
+            <div class="channel-item ${this.selectedChannel === channel.name ? 'active' : ''}" 
+                 onclick="dashboard.selectChannel('${this.escapeHtml(channel.name)}')">
+                <div class="channel-name">
+                    <span class="icon">📻</span>
+                    <span>${this.escapeHtml(channel.name)}</span>
+                </div>
+                <div class="channel-stats">
+                    <span class="channel-stat">💬 ${channel.messageCount}</span>
+                    ${channel.imageCount > 0 ? `<span class="channel-stat">📷 ${channel.imageCount}</span>` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        // Update filter tabs
+        this.updateFilterTabs();
     }
     
-    getChannelColor(channel) {
-        if (!channel || channel === '') {
-            return '#667eea'; // Default blue for public messages
-        }
+    updateFilterTabs() {
+        const container = document.getElementById('channelFilterTabs');
         
-        // Generate consistent color based on channel name
-        let hash = 0;
-        for (let i = 0; i < channel.length; i++) {
-            hash = channel.charCodeAt(i) + ((hash << 5) - hash);
-        }
+        let tabs = `<span class="filter-tab ${this.selectedChannel === 'all' ? 'active' : ''}" 
+                         onclick="dashboard.filterByChannel('all')">All</span>`;
         
-        const hue = Math.abs(hash) % 360;
-        return `hsl(${hue}, 60%, 50%)`;
+        // Add top 5 channels as tabs
+        this.channels.slice(0, 5).forEach(channel => {
+            const isActive = this.selectedChannel === channel.name ? 'active' : '';
+            tabs += `<span class="filter-tab ${isActive}" 
+                          onclick="dashboard.filterByChannel('${this.escapeHtml(channel.name)}')">${this.escapeHtml(channel.name)}</span>`;
+        });
+        
+        container.innerHTML = tabs;
+    }
+    
+    selectChannel(channelName) {
+        this.selectedChannel = channelName;
+        this.updateChannels();
+        this.updateMessages();
+    }
+    
+    filterByChannel(channelName) {
+        this.selectedChannel = channelName;
+        this.updateFilterTabs();
+        this.updateChannels();
+        this.updateMessages();
     }
     
     async updateMessages() {
-        const timeFilter = document.getElementById('messageTimeFilter').value;
+        const timeFilter = document.getElementById('messageTimeFilter')?.value || 'day';
         const posts = await this.apiCall(`/posts?filter=${timeFilter}&limit=100`);
         
         if (!posts) {
@@ -278,21 +261,30 @@ class AdminDashboard {
             return;
         }
         
-        this.messages = posts;
+        // Filter by selected channel
+        let filteredPosts = posts;
+        if (this.selectedChannel !== 'all') {
+            filteredPosts = posts.filter(post => {
+                const postChannel = post.channel || 'Public';
+                return postChannel === this.selectedChannel;
+            });
+        }
+        
+        this.messages = filteredPosts;
         
         const container = document.getElementById('messagesList');
         
-        if (posts.length === 0) {
-            container.innerHTML = '<div class="no-data">No messages found for selected time period</div>';
+        if (filteredPosts.length === 0) {
+            container.innerHTML = '<div class="no-data">No messages found</div>';
             return;
         }
         
-        container.innerHTML = posts.map(post => `
+        container.innerHTML = filteredPosts.map(post => `
             <div class="message-item" data-id="${post.id}">
                 <div class="message-header">
                     <div class="message-info">
-                        <strong>${this.escapeHtml(post.displayName)}</strong>
-                        ${post.channel ? `<span class="channel-tag">${this.escapeHtml(post.channel)}</span>` : '<span class="channel-tag">Public</span>'}
+                        <span class="message-author">${this.escapeHtml(post.displayName)}</span>
+                        <span class="channel-tag">${this.escapeHtml(post.channel || 'Public')}</span>
                     </div>
                     <button class="delete-btn" onclick="dashboard.deleteMessage('${post.id}')">
                         🗑️ Delete
@@ -300,48 +292,32 @@ class AdminDashboard {
                 </div>
                 <div class="message-content">
                     ${this.escapeHtml(post.message)}
-                    ${post.image ? `
-                        <div class="image-attachment" style="margin-top: 10px;">
-                            <img 
-                                src="${post.image}" 
-                                alt="Message attachment"
-                                class="message-thumbnail"
-                                style="
-                                    max-width: 200px;
-                                    max-height: 150px;
-                                    border-radius: 8px;
-                                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                                    cursor: pointer;
-                                    object-fit: cover;
-                                    border: 2px solid #e1e5e9;
-                                    transition: transform 0.2s, box-shadow 0.2s;
-                                "
-                                onclick="dashboard.showImageModal('${post.image}', '${this.escapeHtml(post.displayName)}', '${this.escapeHtml(post.message)}')"
-                                onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'"
-                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'"
-                                loading="lazy"
-                            />
-                            <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                                📷 Click to view full size
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
+                ${post.image ? `
+                    <div class="image-attachment">
+                        <img 
+                            src="${post.image}" 
+                            alt="Message attachment"
+                            class="message-thumbnail"
+                            style="max-width: 200px; max-height: 150px; cursor: pointer; object-fit: cover;"
+                            onclick="dashboard.showImageModal('${post.image}', '${this.escapeHtml(post.displayName)}', '${this.escapeHtml(post.message)}')"
+                            loading="lazy"
+                        />
+                        <div style="font-size: 11px; color: #888; margin-top: 4px;">📷 Click to view</div>
+                    </div>
+                ` : ''}
                 <div class="message-meta">
-                    <span>📍 ${post.latitude.toFixed(4)}, ${post.longitude.toFixed(4)}</span>
                     <span>${new Date(post.createdAt).toLocaleString()}</span>
                     <span class="vote-stats">
-                        👍 ${post.upvotes || 0} | 👎 ${post.downvotes || 0}
+                        👍 ${post.upvotes || 0} &nbsp; 👎 ${post.downvotes || 0}
                     </span>
                 </div>
             </div>
         `).join('');
-        
-        console.log(`💬 Messages updated: ${posts.length} messages`);
     }
     
     async deleteMessage(messageId) {
-        if (!confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+        if (!confirm('Are you sure you want to delete this message?')) {
             return;
         }
         
@@ -350,30 +326,23 @@ class AdminDashboard {
         });
         
         if (result && result.deleted) {
-            // Remove message from UI
             const messageElement = document.querySelector(`[data-id="${messageId}"]`);
             if (messageElement) {
-                messageElement.remove();
+                messageElement.style.opacity = '0';
+                messageElement.style.transform = 'translateX(-20px)';
+                setTimeout(() => messageElement.remove(), 300);
             }
             
-            // Update stats and map
             await this.loadStats();
-            await this.updateMap();
+            await this.updateChannels();
             
-            console.log(`🗑️ Message deleted: ${messageId}`);
+            this.showNotification('Message deleted', 'success');
         } else {
-            alert('Failed to delete message. Please try again.');
+            this.showNotification('Failed to delete message', 'error');
         }
     }
     
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
     showImageModal(imageSrc, displayName, message) {
-        // Create modal overlay
         const modal = document.createElement('div');
         modal.className = 'image-modal';
         modal.style.cssText = `
@@ -388,29 +357,24 @@ class AdminDashboard {
             justify-content: center;
             z-index: 10000;
             cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.3s ease;
         `;
         
-        // Create modal content
         const modalContent = document.createElement('div');
         modalContent.style.cssText = `
             max-width: 90vw;
             max-height: 90vh;
-            background: white;
+            background: #3a3d45;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            position: relative;
             cursor: default;
         `;
         
         modalContent.innerHTML = `
-            <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-                <div style="font-weight: bold; color: #333; margin-bottom: 5px;">
+            <div style="margin-bottom: 15px; border-bottom: 1px solid #5a5d65; padding-bottom: 10px;">
+                <div style="font-weight: bold; color: #fff; margin-bottom: 5px;">
                     📷 Image from ${this.escapeHtml(displayName)}
                 </div>
-                <div style="font-size: 14px; color: #666; word-wrap: break-word;">
+                <div style="font-size: 14px; color: #B0B3B8; word-wrap: break-word;">
                     "${this.escapeHtml(message)}"
                 </div>
             </div>
@@ -418,44 +382,16 @@ class AdminDashboard {
             <img 
                 src="${imageSrc}" 
                 alt="Full size image"
-                style="
-                    max-width: 100%;
-                    max-height: 70vh;
-                    border-radius: 8px;
-                    display: block;
-                    margin: 0 auto;
-                    object-fit: contain;
-                "
+                style="max-width: 100%; max-height: 70vh; border-radius: 8px; display: block; margin: 0 auto;"
             />
             
             <div style="text-align: center; margin-top: 15px;">
-                <button 
-                    onclick="this.closest('.image-modal').remove()"
-                    style="
-                        background: #f44336;
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-size: 14px;
-                        margin-right: 10px;
-                    "
-                >
+                <button onclick="this.closest('.image-modal').remove()"
+                    style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px;">
                     ✕ Close
                 </button>
-                <button 
-                    onclick="dashboard.downloadImage('${imageSrc}', '${this.escapeHtml(displayName)}')"
-                    style="
-                        background: #4CAF50;
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-size: 14px;
-                    "
-                >
+                <button onclick="dashboard.downloadImage('${imageSrc}', '${this.escapeHtml(displayName)}')"
+                    style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
                     💾 Download
                 </button>
             </div>
@@ -464,68 +400,83 @@ class AdminDashboard {
         modal.appendChild(modalContent);
         document.body.appendChild(modal);
         
-        // Animate in
-        setTimeout(() => {
-            modal.style.opacity = '1';
-        }, 10);
-        
-        // Close on background click
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.style.opacity = '0';
-                setTimeout(() => modal.remove(), 300);
-            }
+            if (e.target === modal) modal.remove();
         });
         
-        // Close on Escape key
-        const handleKeyPress = (e) => {
+        document.addEventListener('keydown', function handler(e) {
             if (e.key === 'Escape') {
-                modal.style.opacity = '0';
-                setTimeout(() => modal.remove(), 300);
-                document.removeEventListener('keydown', handleKeyPress);
+                modal.remove();
+                document.removeEventListener('keydown', handler);
             }
-        };
-        document.addEventListener('keydown', handleKeyPress);
-        
-        // Prevent content click from closing modal
-        modalContent.addEventListener('click', (e) => {
-            e.stopPropagation();
         });
+        
+        modalContent.addEventListener('click', e => e.stopPropagation());
     }
     
     downloadImage(imageSrc, displayName) {
         try {
             const link = document.createElement('a');
             link.href = imageSrc;
-            link.download = `groupdeedo-image-${displayName}-${new Date().getTime()}.jpg`;
+            link.download = `groupdeedo-${displayName}-${Date.now()}.jpg`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
-            this.showNotification('Image download started!', 'success');
+            this.showNotification('Download started', 'success');
         } catch (error) {
-            console.error('Download failed:', error);
-            this.showNotification('Download failed. You can right-click the image to save it.', 'error');
+            this.showNotification('Download failed', 'error');
         }
     }
     
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+        `;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.style.transform = 'translateX(0)', 10);
+        
+        setTimeout(() => {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+    
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     updateTimestamp() {
-        document.getElementById('lastUpdate').textContent = 
-            `Last updated: ${new Date().toLocaleTimeString()}`;
+        const el = document.getElementById('lastUpdate');
+        if (el) {
+            el.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
     }
     
     logout() {
-        console.log('Logging out admin user');
-        
-        // Clear admin session cookie
         document.cookie = 'adminSession=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         
-        // Clear auto-refresh
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
         }
         
-        // Redirect to login
         window.location.href = '/proadmin/login';
     }
     
@@ -533,21 +484,17 @@ class AdminDashboard {
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
         }
-        
-        if (this.map) {
-            this.map.remove();
-        }
     }
 }
 
 // Global functions for HTML event handlers
-window.updateMap = () => dashboard.updateMap();
+window.updateChannels = () => dashboard.updateChannels();
 window.updateMessages = () => dashboard.updateMessages();
 window.logout = () => dashboard.logout();
 
-// Initialize dashboard when script loads (called by HTML after Leaflet is ready)
+// Initialize dashboard
 let dashboard;
-console.log('🔧 Dashboard script executing');
+console.log('🔧 Dashboard script loading');
 dashboard = new AdminDashboard();
 
 // Cleanup on page unload
