@@ -594,13 +594,15 @@ class GroupdeedoApp {
             }
             
         } catch (error) {
-            console.error('Error processing image:', error);
+            console.error('📷 Error processing image:', error);
+            console.error('📷 Error stack:', error.stack);
             this.showNotification('Failed to process image. Please try a different image.', 'error');
             document.getElementById('imageInput').value = '';
         }
     }
     
     fileToDataUrl(file) {
+        console.log('📷 fileToDataUrl called');
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = e => resolve(e.target.result);
