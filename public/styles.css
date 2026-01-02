@@ -1072,30 +1072,32 @@ textarea:focus-visible {
 .ad-banner {
     background: var(--surface-color);
     border-top: 1px solid var(--border-color);
-    padding: var(--spacing-sm);
+    padding: 0;
     text-align: center;
     flex-shrink: 0;
+    width: 100%;
 }
 
 .ad-banner a {
     display: block;
     text-decoration: none;
+    width: 100%;
 }
 
 .ad-banner img {
-    max-width: 100%;
-    max-height: 60px;
+    width: 100%;
     height: auto;
-    border-radius: var(--border-radius-small);
-    object-fit: contain;
+    display: block;
+    /* No max-height - image scales to full width with natural aspect ratio */
 }
 
 @media (max-width: 480px) {
     .ad-banner {
-        padding: var(--spacing-xs);
+        padding: 0;
     }
     
     .ad-banner img {
-        max-height: 50px;
+        width: 100%;
+        height: auto;
     }
 }

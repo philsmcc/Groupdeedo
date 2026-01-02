@@ -6,6 +6,8 @@ const socketIo = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
+const multer = require('multer');
+const fs = require('fs');
 // Generate UUID function
 const { randomBytes } = require('crypto');
 function uuidv4() {
@@ -739,6 +741,82 @@ app.delete('/api/admin/ads/:id', requireAdminAuth, async (req, res) => {
         console.error('Error deleting ad:', error);
         res.status(500).json({ error: 'Failed to delete ad' });
     }
+});
+
+// ==================== Ad Image Upload ====================
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads', 'ads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for ad image uploads
+const adStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+    },
+    filename: function (req, file, cb) {
+        // Generate unique filename with timestamp
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+        cb(null, 'ad-' + uniqueSuffix + ext);
+    }
+});
+
+const adUpload = multer({
+    storage: adStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB max
+    },
+    fileFilter: function (req, file, cb) {
+        // Accept images only
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
+        }
+    }
+});
+
+// Admin - upload ad image
+app.post('/api/admin/ads/upload', requireAdminAuth, adUpload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image file provided' });
+        }
+        
+        // Return the URL path to the uploaded image
+        const imageUrl = `/uploads/ads/${req.file.filename}`;
+        console.log(`📢 Ad image uploaded: ${imageUrl}`);
+        
+        res.json({ 
+            success: true, 
+            imageUrl: imageUrl,
+            filename: req.file.filename,
+            size: req.file.size
+        });
+    } catch (error) {
+        console.error('Error uploading ad image:', error);
+        res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
+
+// Handle multer errors
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
+        }
+        return res.status(400).json({ error: err.message });
+    } else if (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    next();
 });
 
 // Serve the main app

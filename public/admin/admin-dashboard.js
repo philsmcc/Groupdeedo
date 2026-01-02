@@ -536,7 +536,13 @@ class AdminDashboard {
         document.getElementById('adChannel').value = '';
         document.getElementById('adImageUrl').value = '';
         document.getElementById('adLinkUrl').value = '';
+        document.getElementById('adImageFile').value = '';
+        document.getElementById('uploadStatus').textContent = '';
+        document.getElementById('adImagePreview').style.display = 'none';
         document.getElementById('adForm').style.display = 'block';
+        
+        // Setup file input listener
+        this.setupImageUpload();
     }
     
     editAd(id, channel, imageUrl, linkUrl, active) {
@@ -545,7 +551,21 @@ class AdminDashboard {
         document.getElementById('adChannel').value = channel;
         document.getElementById('adImageUrl').value = imageUrl;
         document.getElementById('adLinkUrl').value = linkUrl;
+        document.getElementById('adImageFile').value = '';
+        document.getElementById('uploadStatus').textContent = '';
+        
+        // Show current image preview
+        if (imageUrl) {
+            document.getElementById('adPreviewImg').src = imageUrl;
+            document.getElementById('adImagePreview').style.display = 'block';
+        } else {
+            document.getElementById('adImagePreview').style.display = 'none';
+        }
+        
         document.getElementById('adForm').style.display = 'block';
+        
+        // Setup file input listener
+        this.setupImageUpload();
     }
     
     hideAdForm() {
@@ -554,6 +574,105 @@ class AdminDashboard {
         document.getElementById('adChannel').value = '';
         document.getElementById('adImageUrl').value = '';
         document.getElementById('adLinkUrl').value = '';
+        document.getElementById('adImageFile').value = '';
+        document.getElementById('uploadStatus').textContent = '';
+        document.getElementById('adImagePreview').style.display = 'none';
+    }
+    
+    setupImageUpload() {
+        const fileInput = document.getElementById('adImageFile');
+        const urlInput = document.getElementById('adImageUrl');
+        
+        // Remove existing listeners to prevent duplicates
+        const newFileInput = fileInput.cloneNode(true);
+        fileInput.parentNode.replaceChild(newFileInput, fileInput);
+        
+        // Add file change listener
+        newFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                await this.uploadAdImage(file);
+            }
+        });
+        
+        // Add URL input listener for preview
+        urlInput.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (url) {
+                document.getElementById('adPreviewImg').src = url;
+                document.getElementById('adImagePreview').style.display = 'block';
+            } else {
+                document.getElementById('adImagePreview').style.display = 'none';
+            }
+        });
+    }
+    
+    async uploadAdImage(file) {
+        const statusEl = document.getElementById('uploadStatus');
+        const previewEl = document.getElementById('adImagePreview');
+        const previewImg = document.getElementById('adPreviewImg');
+        const urlInput = document.getElementById('adImageUrl');
+        
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            statusEl.textContent = '❌ File too large. Max 5MB.';
+            statusEl.style.color = '#dc3545';
+            return;
+        }
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            statusEl.textContent = '❌ Please select an image file.';
+            statusEl.style.color = '#dc3545';
+            return;
+        }
+        
+        statusEl.textContent = '⏳ Uploading...';
+        statusEl.style.color = '#17a2b8';
+        
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const token = this.getAdminToken();
+            const response = await fetch('/api/admin/ads/upload', {
+                method: 'POST',
+                headers: {
+                    'X-Admin-Token': token
+                },
+                credentials: 'include',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Update the URL input with the uploaded image path
+                urlInput.value = result.imageUrl;
+                
+                // Show preview
+                previewImg.src = result.imageUrl;
+                previewEl.style.display = 'block';
+                
+                const sizeKB = Math.round(result.size / 1024);
+                statusEl.textContent = `✅ Uploaded! (${sizeKB} KB)`;
+                statusEl.style.color = '#28a745';
+                
+                this.showNotification('Image uploaded successfully', 'success');
+            } else {
+                throw new Error(result.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            statusEl.textContent = `❌ ${error.message}`;
+            statusEl.style.color = '#dc3545';
+            this.showNotification('Failed to upload image', 'error');
+        }
     }
     
     async saveAd() {

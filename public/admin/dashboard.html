@@ -522,11 +522,26 @@
                         <input type="text" id="adChannel" placeholder="e.g., baseball" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
                     </div>
                     <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Image URL:</label>
-                        <input type="text" id="adImageUrl" placeholder="https://example.com/ad-image.jpg" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
+                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Ad Image:</label>
+                        <div style="display: flex; gap: 10px; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <input type="file" id="adImageFile" accept="image/*" style="display: none;">
+                                <button type="button" onclick="document.getElementById('adImageFile').click()" style="width: 100%; background: #5a5d65; border-color: #5a5d65;">
+                                    📁 Choose Image File
+                                </button>
+                                <div id="uploadStatus" style="font-size: 12px; color: #B0B3B8; margin-top: 5px;"></div>
+                            </div>
+                            <span style="color: #B0B3B8; padding-top: 8px;">or</span>
+                            <div style="flex: 1;">
+                                <input type="text" id="adImageUrl" placeholder="Paste image URL" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
+                            </div>
+                        </div>
+                        <div id="adImagePreview" style="margin-top: 10px; display: none;">
+                            <img id="adPreviewImg" src="" alt="Ad Preview" style="max-width: 100%; max-height: 100px; border-radius: 6px; border: 1px solid #5a5d65;">
+                        </div>
                     </div>
                     <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Link URL:</label>
+                        <label style="display: block; margin-bottom: 5px; color: #B0B3B8;">Link URL (where to go when clicked):</label>
                         <input type="text" id="adLinkUrl" placeholder="https://example.com/landing-page" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #5a5d65; background: #3a3d45; color: #fff;">
                     </div>
                     <div style="display: flex; gap: 10px;">
