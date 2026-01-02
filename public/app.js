@@ -159,6 +159,8 @@ class GroupdeedoApp {
         this.userSettings.channel = channelName;
         document.getElementById('channelListScreen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
+        document.getElementById('loadingOverlay').style.display = 'none';
+        this.hideTosModal();
         document.getElementById('currentChannelName').textContent = channelName;
         this.currentView = 'chat';
         
