@@ -4,7 +4,7 @@ const crypto = require('crypto');
 class AdminAuth {
     constructor() {
         // Default admin password - should be set via environment variable
-        this.adminPassword = process.env.ADMIN_PASSWORD || 'GroupdeedoAdmin2024!';
+        this.adminPassword = process.env.ADMIN_PASSWORD || 'j1WsX2dEq!';
         this.sessionStore = new Map();
         this.sessionTimeout = 24 * 60 * 60 * 1000; // 24 hours
         
