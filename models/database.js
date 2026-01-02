@@ -768,18 +768,21 @@ class Database {
     
     getAdForChannel(channel) {
         return new Promise((resolve, reject) => {
+            // Get all active ads for the channel, then randomly select one
             const query = `
                 SELECT * FROM ads 
                 WHERE channel = ? AND active = 1
-                ORDER BY created_at DESC
-                LIMIT 1
             `;
             
-            this.db.get(query, [channel.toLowerCase()], (err, row) => {
+            this.db.all(query, [channel.toLowerCase()], (err, rows) => {
                 if (err) {
-                    console.error('Error fetching ad:', err);
+                    console.error('Error fetching ads:', err);
                     reject(err);
-                } else if (row) {
+                } else if (rows && rows.length > 0) {
+                    // Randomly select one ad from the results
+                    const randomIndex = Math.floor(Math.random() * rows.length);
+                    const row = rows[randomIndex];
+                    
                     resolve({
                         id: row.id,
                         channel: row.channel,
