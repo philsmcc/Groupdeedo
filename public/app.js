@@ -110,18 +110,22 @@ class GroupdeedoApp {
     
     checkTosAgreement() {
         const agreed = localStorage.getItem('groupdeedo_tos_agreed');
+        console.log('🔐 TOS agreed:', agreed, 'pendingChannel:', this.pendingChannel);
+        
         if (agreed === 'true') {
             this.hasAgreedToTos = true;
             this.connectSocket();
             
             // If there's a pending channel from URL, go directly to it
             if (this.pendingChannel) {
+                console.log('🔐 Opening pending channel:', this.pendingChannel);
                 this.showChatView(this.pendingChannel, false); // false = don't push to history (it's initial load)
                 this.pendingChannel = null;
             } else {
                 this.showChannelListScreen(false); // false = don't push to history
             }
         } else {
+            console.log('🔐 Showing TOS modal');
             this.showTosModal();
         }
     }
@@ -150,6 +154,8 @@ class GroupdeedoApp {
     }
     
     showChatView(channelName, pushState = true) {
+        console.log('📺 showChatView called for channel:', channelName, 'pushState:', pushState);
+        
         this.userSettings.channel = channelName;
         document.getElementById('channelListScreen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
@@ -166,6 +172,7 @@ class GroupdeedoApp {
         }
         
         // Request posts for this channel
+        console.log('📺 Calling requestChannelPosts, socket connected:', this.isConnected);
         this.requestChannelPosts();
     }
     
