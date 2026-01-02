@@ -28,7 +28,11 @@ const io = socketIo(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    // Increase max message size for image uploads (default is 1MB)
+    maxHttpBufferSize: 10 * 1024 * 1024, // 10MB
+    pingTimeout: 60000, // 60 seconds - give more time for large uploads
+    pingInterval: 25000
 });
 
 const PORT = process.env.PORT || 3000;

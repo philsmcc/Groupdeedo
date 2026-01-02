@@ -580,34 +580,47 @@ class GroupdeedoApp {
     }
     
     async processImage(file) {
-        console.log('📷 processImage called for:', file.name);
+        console.log('📷 processImage called for:', file.name, 'size:', file.size);
         
         // Store reference to 'this' for use in callbacks
         const self = this;
         
         try {
-            // Always compress on mobile to reduce memory usage, or if file is large
+            // Always compress on mobile to reduce memory usage and socket transmission size
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            const needsCompression = file.size > 1 * 1024 * 1024 || isMobile; // 1MB threshold or mobile
+            // Always compress - socket.io has limits and large base64 causes issues
+            const needsCompression = true; // Compress everything for reliability
             
-            console.log('📷 Mobile device:', isMobile, 'Needs compression:', needsCompression);
+            console.log('📷 Mobile device:', isMobile, 'File size MB:', (file.size / 1024 / 1024).toFixed(2));
             
             let imageDataUrl;
             
-            if (needsCompression) {
-                console.log(`📷 Compressing image: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
-                
-                // Use smaller dimensions on mobile to prevent memory issues
-                const maxWidth = isMobile ? 1280 : 1920;
-                const maxHeight = isMobile ? 960 : 1080;
-                const quality = isMobile ? 0.7 : 0.8;
-                
-                imageDataUrl = await this.compressImage(file, maxWidth, maxHeight, quality);
-                console.log('📷 Compression complete, data URL length:', imageDataUrl.length);
+            // Determine compression settings based on file size and device
+            let maxWidth, maxHeight, quality;
+            
+            if (file.size > 8 * 1024 * 1024) {
+                // Very large files (>8MB) - aggressive compression
+                maxWidth = 1024;
+                maxHeight = 768;
+                quality = 0.5;
+                console.log('📷 Very large file - using aggressive compression');
+            } else if (file.size > 4 * 1024 * 1024 || isMobile) {
+                // Large files (>4MB) or mobile - moderate compression
+                maxWidth = 1280;
+                maxHeight = 960;
+                quality = 0.6;
+                console.log('📷 Large file or mobile - using moderate compression');
             } else {
-                console.log('📷 Reading image without compression');
-                imageDataUrl = await this.fileToDataUrl(file);
+                // Normal files - light compression
+                maxWidth = 1600;
+                maxHeight = 1200;
+                quality = 0.75;
+                console.log('📷 Normal file - using light compression');
             }
+            
+            console.log(`📷 Compressing with: ${maxWidth}x${maxHeight} @ quality ${quality}`);
+            imageDataUrl = await this.compressImage(file, maxWidth, maxHeight, quality);
+            console.log('📷 Compression complete, data URL length:', imageDataUrl.length, '(~', Math.round(imageDataUrl.length * 0.75 / 1024), 'KB)');
             
             // Verify we got valid data
             if (!imageDataUrl || !imageDataUrl.startsWith('data:')) {
@@ -767,17 +780,34 @@ class GroupdeedoApp {
                         ctx.drawImage(img, 0, 0, width, height);
                         
                         // Compress with decreasing quality until size is acceptable
+                        // Socket.IO default is 1MB, we set 10MB but aim for <2MB for reliability
                         let currentQuality = quality;
                         let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
                         let attempts = 0;
-                        const maxAttempts = 5;
+                        const maxAttempts = 8;
+                        const targetMaxSize = 2 * 1024 * 1024; // Target 2MB max (base64 is ~33% larger than binary)
                         
-                        // Target max 5MB for socket transmission
-                        while (dataUrl.length > 5 * 1024 * 1024 && currentQuality > 0.3 && attempts < maxAttempts) {
+                        console.log('📷 Initial compression result:', Math.round(dataUrl.length / 1024), 'KB');
+                        
+                        // If still too large, reduce quality
+                        while (dataUrl.length > targetMaxSize && currentQuality > 0.2 && attempts < maxAttempts) {
                             currentQuality -= 0.1;
                             dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
                             attempts++;
                             console.log('📷 Compression attempt', attempts, 'quality:', currentQuality.toFixed(1), 'size:', Math.round(dataUrl.length / 1024), 'KB');
+                        }
+                        
+                        // If still too large after quality reduction, reduce dimensions further
+                        if (dataUrl.length > targetMaxSize && width > 800) {
+                            console.log('📷 Still too large, reducing dimensions further');
+                            const scale = 0.7;
+                            width = Math.round(width * scale);
+                            height = Math.round(height * scale);
+                            canvas.width = width;
+                            canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+                            dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                            console.log('📷 After dimension reduction:', Math.round(dataUrl.length / 1024), 'KB at', width, 'x', height);
                         }
                         
                         console.log('📷 Final compressed size:', Math.round(dataUrl.length / 1024), 'KB');
