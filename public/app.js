@@ -19,12 +19,17 @@ class GroupdeedoApp {
     }
     
     init() {
-        this.checkTosAgreement();
+        // Parse URL parameters FIRST (before checking TOS)
+        this.parseUrlParams();
+        
         this.setupEventListeners();
         this.setupAutoResize();
         
-        // Parse URL parameters for channel sharing
-        this.parseUrlParams();
+        // Set up browser history navigation
+        this.setupHistoryNavigation();
+        
+        // Check TOS and initialize view
+        this.checkTosAgreement();
     }
     
     // ==================== Data Persistence ====================
@@ -107,8 +112,15 @@ class GroupdeedoApp {
         const agreed = localStorage.getItem('groupdeedo_tos_agreed');
         if (agreed === 'true') {
             this.hasAgreedToTos = true;
-            this.showChannelListScreen();
             this.connectSocket();
+            
+            // If there's a pending channel from URL, go directly to it
+            if (this.pendingChannel) {
+                this.showChatView(this.pendingChannel, false); // false = don't push to history (it's initial load)
+                this.pendingChannel = null;
+            } else {
+                this.showChannelListScreen(false); // false = don't push to history
+            }
         } else {
             this.showTosModal();
         }
@@ -123,16 +135,21 @@ class GroupdeedoApp {
         document.getElementById('tosModal').style.display = 'none';
     }
     
-    showChannelListScreen() {
+    showChannelListScreen(pushState = true) {
         document.getElementById('channelListScreen').style.display = 'flex';
         document.getElementById('app').style.display = 'none';
         document.getElementById('loadingOverlay').style.display = 'none';
         this.hideTosModal();
         this.currentView = 'channels';
         this.renderChannelList();
+        
+        // Update browser history
+        if (pushState) {
+            history.pushState({ view: 'channels' }, '', '/');
+        }
     }
     
-    showChatView(channelName) {
+    showChatView(channelName, pushState = true) {
         this.userSettings.channel = channelName;
         document.getElementById('channelListScreen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
@@ -142,6 +159,11 @@ class GroupdeedoApp {
         // Clear messages container
         const container = document.getElementById('messagesContainer');
         container.innerHTML = '<div class="welcome-message"><p>Loading messages...</p></div>';
+        
+        // Update browser history
+        if (pushState) {
+            history.pushState({ view: 'chat', channel: channelName }, '', `/?channel=${encodeURIComponent(channelName)}`);
+        }
         
         // Request posts for this channel
         this.requestChannelPosts();
@@ -206,18 +228,45 @@ class GroupdeedoApp {
         const urlParams = new URLSearchParams(window.location.search);
         const channelParam = urlParams.get('channel');
         if (channelParam) {
-            // Auto-add channel from URL and go directly to it
-            if (!this.channels.includes(channelParam)) {
+            console.log('📎 Channel from URL:', channelParam);
+            
+            // Auto-add channel from URL
+            if (!this.channels.some(c => c.toLowerCase() === channelParam.toLowerCase())) {
                 this.channels.push(channelParam);
                 this.saveChannels();
+                console.log('📎 Added channel to list:', channelParam);
             }
             
-            // After TOS agreement, go directly to this channel
+            // Set as pending channel to open after TOS/init
             this.pendingChannel = channelParam;
             
-            // Clear URL parameter
-            window.history.replaceState({}, document.title, window.location.pathname);
+            // Replace URL state (don't clear the URL yet - we'll set it properly when showing chat)
+            window.history.replaceState({ view: 'chat', channel: channelParam }, '', window.location.href);
+        } else {
+            // No channel param - set initial state
+            window.history.replaceState({ view: 'channels' }, '', '/');
         }
+    }
+    
+    setupHistoryNavigation() {
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', (event) => {
+            console.log('🔙 Popstate event:', event.state);
+            
+            if (!this.hasAgreedToTos) {
+                return; // Don't navigate if TOS not agreed
+            }
+            
+            const state = event.state;
+            
+            if (state && state.view === 'chat' && state.channel) {
+                // Going to a chat view
+                this.showChatView(state.channel, false); // false = don't push new state
+            } else {
+                // Going to channel list (or unknown state)
+                this.showChannelListScreen(false); // false = don't push new state
+            }
+        });
     }
     
     // ==================== Event Listeners ====================
