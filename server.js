@@ -73,8 +73,76 @@ if (ENABLE_AUTO_CLEANUP) {
     setTimeout(performCleanup, 5 * 60 * 1000);
 }
 
-// Middleware - Helmet disabled, all security headers handled by Nginx
-// app.use(helmet()) - Commented out to prevent header conflicts with Nginx
+// ==================== Security Middleware ====================
+
+// Basic rate limiting (in-memory, simple but effective)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // max requests per window
+const RATE_LIMIT_MAX_MESSAGES = 20; // max messages per minute per user
+
+function rateLimit(identifier, maxRequests = RATE_LIMIT_MAX_REQUESTS) {
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    
+    if (!rateLimitMap.has(identifier)) {
+        rateLimitMap.set(identifier, []);
+    }
+    
+    const requests = rateLimitMap.get(identifier);
+    // Remove old requests outside the window
+    const recentRequests = requests.filter(time => time > windowStart);
+    rateLimitMap.set(identifier, recentRequests);
+    
+    if (recentRequests.length >= maxRequests) {
+        return false; // Rate limited
+    }
+    
+    recentRequests.push(now);
+    return true; // Allowed
+}
+
+// Clean up rate limit map periodically
+setInterval(() => {
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    for (const [key, requests] of rateLimitMap.entries()) {
+        const recent = requests.filter(time => time > windowStart);
+        if (recent.length === 0) {
+            rateLimitMap.delete(key);
+        } else {
+            rateLimitMap.set(key, recent);
+        }
+    }
+}, 60000); // Clean every minute
+
+// Input sanitization helper
+function sanitizeInput(input, maxLength = 500) {
+    if (typeof input !== 'string') return '';
+    // Trim, limit length, remove null bytes
+    return input.trim().slice(0, maxLength).replace(/\0/g, '');
+}
+
+function sanitizeDisplayName(name) {
+    if (!name || typeof name !== 'string') return 'Anonymous';
+    // Allow only reasonable characters, limit length
+    const sanitized = name.trim().slice(0, 50).replace(/[<>"'&\\]/g, '');
+    return sanitized || 'Anonymous';
+}
+
+function sanitizeChannel(channel) {
+    if (!channel || typeof channel !== 'string') return '';
+    // Allow alphanumeric, spaces, hyphens, underscores - limit length
+    return channel.trim().slice(0, 100).replace(/[^a-zA-Z0-9\s\-_]/g, '');
+}
+
+// Validate image data URL
+function isValidImageDataUrl(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return true; // null/undefined is OK
+    if (!dataUrl.startsWith('data:image/')) return false;
+    if (dataUrl.length > 10 * 1024 * 1024) return false; // Max 10MB
+    return true;
+}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -82,6 +150,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Cookie parser for admin sessions
 app.use(require('cookie-parser')());
+
+// Rate limiting middleware for API routes
+app.use('/api/', (req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    if (!rateLimit(ip)) {
+        console.log(`⚠️ Rate limit exceeded for IP: ${ip}`);
+        return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+    }
+    next();
+});
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -109,8 +187,9 @@ io.on('connection', (socket) => {
             // Check if settings actually changed to avoid unnecessary updates
             const oldUser = { ...user };
             
-            user.displayName = settings.displayName || user.displayName;
-            user.channel = settings.channel !== undefined ? normalizeChannel(settings.channel) : user.channel;
+            // Sanitize inputs
+            user.displayName = sanitizeDisplayName(settings.displayName) || user.displayName;
+            user.channel = settings.channel !== undefined ? sanitizeChannel(settings.channel) : user.channel;
             
             console.log(`⚙️  User ${user.displayName} (${socket.id}) updated settings:`, {
                 channel: user.channel
@@ -131,9 +210,15 @@ io.on('connection', (socket) => {
     socket.on('requestPosts', (data) => {
         const user = activeUsers.get(socket.id);
         if (user) {
-            // Update channel if provided
+            // Rate limit post requests
+            if (!rateLimit(`posts_${user.sessionId}`, 30)) { // Max 30 requests per minute
+                socket.emit('error', 'Too many requests. Please wait.');
+                return;
+            }
+            
+            // Update channel if provided (sanitized)
             if (data && data.channel !== undefined) {
-                user.channel = normalizeChannel(data.channel);
+                user.channel = sanitizeChannel(data.channel);
                 activeUsers.set(socket.id, user);
             }
             console.log(`📥 User ${user.displayName} (${socket.id}) requested posts for channel: [${user.channel}]`);
@@ -149,16 +234,37 @@ io.on('connection', (socket) => {
             return;
         }
         
+        // Rate limit messages per user
+        if (!rateLimit(`msg_${user.sessionId}`, RATE_LIMIT_MAX_MESSAGES)) {
+            console.log(`⚠️ Message rate limit exceeded for user: ${user.sessionId}`);
+            socket.emit('error', 'Sending too fast. Please wait a moment.');
+            return;
+        }
+        
+        // Validate and sanitize message
+        const sanitizedMessage = sanitizeInput(messageData.message, 500);
+        if (!sanitizedMessage && !messageData.image) {
+            socket.emit('error', 'Message cannot be empty');
+            return;
+        }
+        
+        // Validate image if provided
+        if (messageData.image && !isValidImageDataUrl(messageData.image)) {
+            console.log(`⚠️ Invalid image data from user: ${user.sessionId}`);
+            socket.emit('error', 'Invalid image format');
+            return;
+        }
+        
         try {
             const post = {
                 id: uuidv4(),
                 sessionId: user.sessionId,
-                displayName: user.displayName,
-                message: messageData.message,
+                displayName: sanitizeDisplayName(user.displayName),
+                message: sanitizedMessage,
                 image: messageData.image || null,
                 latitude: 0,
                 longitude: 0,
-                channel: normalizeChannel(user.channel),
+                channel: sanitizeChannel(user.channel),
                 timestamp: new Date().toISOString()
             };
             
@@ -222,9 +328,15 @@ async function sendFilteredPosts(socket) {
     try {
         const allPosts = await db.getRecentPosts(100); // Get last 100 posts
         
-        // Filter by channel only - everyone in the same channel sees the same posts
+        // Calculate 24 hours ago
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        // Filter by channel and only show messages from last 24 hours
         const filteredPosts = allPosts.filter(post => {
-            return normalizeChannel(post.channel) === normalizeChannel(user.channel);
+            const isCorrectChannel = normalizeChannel(post.channel) === normalizeChannel(user.channel);
+            const postDate = new Date(post.createdAt || post.timestamp);
+            const isRecent = postDate >= twentyFourHoursAgo;
+            return isCorrectChannel && isRecent;
         });
         
         socket.emit('posts', filteredPosts);
